@@ -5,51 +5,53 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding…");
-
-  // ── Usuarios ──
   const passwordHash = await bcrypt.hash("password123", 10);
 
-  const admin = await prisma.usuario.upsert({
-    where: { email: "admin@acopio.mx" },
+  // ── Instituciones receptoras ──
+  const dif = await prisma.institucion.upsert({
+    where: { id: "seed-inst-1" },
     update: {},
-    create: { nombre: "Administrador", email: "admin@acopio.mx", passwordHash, rol: "ADMIN" },
+    create: { id: "seed-inst-1", nombre: "DIF Municipal", contacto: "Lic. Ana Ruiz", telefono: "834-300-0000" },
   });
 
-  // ── Categorías ──
-  const categoriasData = [
-    { nombre: "Alimentos", descripcion: "Alimentos no perecederos" },
-    { nombre: "Agua", descripcion: "Agua embotellada y garrafones" },
-    { nombre: "Ropa", descripcion: "Ropa y calzado" },
-    { nombre: "Medicamentos", descripcion: "Medicamentos e insumos médicos" },
-    { nombre: "Higiene", descripcion: "Artículos de higiene personal" },
-  ];
-  const categorias = await Promise.all(
-    categoriasData.map((c) =>
-      prisma.categoria.upsert({ where: { nombre: c.nombre }, update: {}, create: c }),
-    ),
-  );
-  const catBy = (n: string) => categorias.find((c) => c.nombre === n)!;
+  // ── Usuarios (uno por rol) ──
+  const coordinador = await prisma.usuario.upsert({
+    where: { email: "coordinador@acopio.mx" },
+    update: {},
+    create: { nombre: "Coordinador General", email: "coordinador@acopio.mx", passwordHash, rol: "COORDINADOR" },
+  });
 
-  // ── Insumos ──
-  const insumosData = [
-    { nombre: "Arroz", unidad: "kg", categoriaId: catBy("Alimentos").id },
-    { nombre: "Frijol", unidad: "kg", categoriaId: catBy("Alimentos").id },
-    { nombre: "Atún enlatado", unidad: "pza", categoriaId: catBy("Alimentos").id },
-    { nombre: "Agua embotellada 1L", unidad: "pza", categoriaId: catBy("Agua").id },
-    { nombre: "Cobija", unidad: "pza", categoriaId: catBy("Ropa").id },
-    { nombre: "Paracetamol 500mg", unidad: "caja", categoriaId: catBy("Medicamentos").id },
-    { nombre: "Jabón de tocador", unidad: "pza", categoriaId: catBy("Higiene").id },
-  ];
-  const insumos = await Promise.all(
-    insumosData.map((i) =>
-      prisma.insumo.upsert({
-        where: { nombre_categoriaId: { nombre: i.nombre, categoriaId: i.categoriaId } },
-        update: {},
-        create: i,
-      }),
-    ),
-  );
-  const insBy = (n: string) => insumos.find((i) => i.nombre === n)!;
+  const lider = await prisma.usuario.upsert({
+    where: { email: "lider@acopio.mx" },
+    update: {},
+    create: { nombre: "Líder Campaña", email: "lider@acopio.mx", passwordHash, rol: "LIDER_CAMPANA" },
+  });
+
+  await prisma.usuario.upsert({
+    where: { email: "institucion@acopio.mx" },
+    update: {},
+    create: {
+      nombre: "DIF Municipal (receptora)",
+      email: "institucion@acopio.mx",
+      passwordHash,
+      rol: "INSTITUCION",
+      institucionId: dif.id,
+    },
+  });
+
+  // ── Campaña ──
+  const campana = await prisma.campana.upsert({
+    where: { id: "seed-camp-1" },
+    update: {},
+    create: {
+      id: "seed-camp-1",
+      nombre: "Apoyo Huracán 2026",
+      descripcion: "Recolección de víveres e insumos para damnificados.",
+      meta: "10,000 artículos",
+      liderId: lider.id,
+      activa: true,
+    },
+  });
 
   // ── Centros ──
   const centro1 = await prisma.centro.upsert({
@@ -58,18 +60,14 @@ async function main() {
     create: {
       id: "seed-centro-1",
       nombre: "Centro de Acopio Centro Histórico",
-      descripcion: "Punto principal de recepción en el centro de la ciudad.",
+      institucion: "Universidad IEST",
       direccion: "Av. Hidalgo 100",
       ciudad: "Ciudad Victoria",
       estado: "Tamaulipas",
-      cp: "87000",
       latitud: 23.7369,
       longitud: -99.1411,
       telefono: "834-100-0000",
-      responsable: "María López",
-      horario: "Lun-Sáb 8:00-20:00",
-      capacidad: 5000,
-      situacion: "ACTIVO",
+      activo: true,
     },
   });
 
@@ -79,97 +77,105 @@ async function main() {
     create: {
       id: "seed-centro-2",
       nombre: "Centro de Acopio Norte",
+      institucion: "Escuela Secundaria 5",
       direccion: "Blvd. Tamaulipas 4500",
       ciudad: "Ciudad Victoria",
       estado: "Tamaulipas",
-      cp: "87025",
       telefono: "834-200-0000",
-      responsable: "Juan Pérez",
-      horario: "Lun-Vie 9:00-18:00",
-      capacidad: 2000,
-      situacion: "ACTIVO",
+      activo: true,
     },
   });
 
-  // Coordinador y voluntario ligados a centros
-  await prisma.usuario.upsert({
-    where: { email: "coordinador@acopio.mx" },
+  // Encargados + voluntario ligados a centros
+  const encargado1 = await prisma.usuario.upsert({
+    where: { email: "encargado@acopio.mx" },
     update: {},
-    create: {
-      nombre: "Coordinador Centro",
-      email: "coordinador@acopio.mx",
-      passwordHash,
-      rol: "COORDINADOR",
-      centroId: centro1.id,
-    },
+    create: { nombre: "Encargado Centro Histórico", email: "encargado@acopio.mx", passwordHash, rol: "ENCARGADO", centroId: centro1.id },
   });
   await prisma.usuario.upsert({
+    where: { email: "encargado2@acopio.mx" },
+    update: {},
+    create: { nombre: "Encargado Norte", email: "encargado2@acopio.mx", passwordHash, rol: "ENCARGADO", centroId: centro2.id },
+  });
+  const voluntario = await prisma.usuario.upsert({
     where: { email: "voluntario@acopio.mx" },
     update: {},
-    create: {
-      nombre: "Voluntario Norte",
-      email: "voluntario@acopio.mx",
-      passwordHash,
-      rol: "VOLUNTARIO",
-      centroId: centro2.id,
-    },
+    create: { nombre: "Voluntario Centro Histórico", email: "voluntario@acopio.mx", passwordHash, rol: "VOLUNTARIO", centroId: centro1.id },
   });
 
-  // ── Inventario inicial ──
-  const invData = [
-    { centroId: centro1.id, insumoId: insBy("Arroz").id, cantidad: 120 },
-    { centroId: centro1.id, insumoId: insBy("Agua embotellada 1L").id, cantidad: 800 },
-    { centroId: centro2.id, insumoId: insBy("Cobija").id, cantidad: 45 },
-  ];
-  for (const inv of invData) {
-    await prisma.inventario.upsert({
-      where: { centroId_insumoId: { centroId: inv.centroId, insumoId: inv.insumoId } },
-      update: { cantidad: inv.cantidad },
-      create: inv,
+  // Asignar encargados a sus centros
+  await prisma.centro.update({ where: { id: centro1.id }, data: { encargadoId: encargado1.id } });
+
+  // Vincular centros a la campaña
+  for (const centroId of [centro1.id, centro2.id]) {
+    await prisma.centroCampana.upsert({
+      where: { centroId_campanaId: { centroId, campanaId: campana.id } },
+      update: {},
+      create: { centroId, campanaId: campana.id },
     });
   }
 
-  // ── Necesidades ──
-  await prisma.necesidad.createMany({
-    data: [
-      { centroId: centro2.id, insumoId: insBy("Agua embotellada 1L").id, cantidadRequerida: 500, prioridad: "URGENTE" },
-      { centroId: centro2.id, insumoId: insBy("Paracetamol 500mg").id, cantidadRequerida: 30, prioridad: "ALTA" },
-      { centroId: centro1.id, insumoId: insBy("Jabón de tocador").id, cantidadRequerida: 200, prioridad: "MEDIA" },
-    ],
-    skipDuplicates: true,
-  });
+  // ── Artículos ──
+  const articulosData = [
+    { id: "seed-art-1", nombre: "Arroz", categoria: "NO_PERECEDERO", unidad: "KG" },
+    { id: "seed-art-2", nombre: "Agua embotellada 1L", categoria: "NO_PERECEDERO", unidad: "PIEZA" },
+    { id: "seed-art-3", nombre: "Cobija", categoria: "ROPA", unidad: "PIEZA" },
+    { id: "seed-art-4", nombre: "Paracetamol 500mg", categoria: "MEDICAMENTO", unidad: "CAJA" },
+    { id: "seed-art-5", nombre: "Jabón", categoria: "LIMPIEZA", unidad: "PIEZA" },
+  ] as const;
+  for (const a of articulosData) {
+    await prisma.articulo.upsert({ where: { id: a.id }, update: {}, create: a });
+  }
 
-  // ── Donación de ejemplo ──
-  const yaHay = await prisma.donacion.count();
+  // ── Metas de recolección por artículo ──
+  for (const m of [
+    { articuloId: "seed-art-1", cantidadObjetivo: 500 },
+    { articuloId: "seed-art-2", cantidadObjetivo: 2000 },
+    { articuloId: "seed-art-3", cantidadObjetivo: 150 },
+  ]) {
+    await prisma.metaCampana.upsert({
+      where: { campanaId_articuloId: { campanaId: campana.id, articuloId: m.articuloId } },
+      update: { cantidadObjetivo: m.cantidadObjetivo },
+      create: { campanaId: campana.id, ...m },
+    });
+  }
+
+  // ── Movimientos de ejemplo (ledger) ──
+  const yaHay = await prisma.movimiento.count();
   if (yaHay === 0) {
-    await prisma.donacion.create({
-      data: {
-        centroId: centro1.id,
-        donanteNombre: "Empresa Solidaria SA",
-        registradaPorId: admin.id,
-        items: {
-          create: [
-            { insumoId: insBy("Frijol").id, cantidad: 50 },
-            { insumoId: insBy("Atún enlatado").id, cantidad: 200 },
-          ],
-        },
-      },
+    // Recepciones en centro1
+    await prisma.movimiento.createMany({
+      data: [
+        { tipo: "RECEPCION", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-1", cantidad: 200, actorId: voluntario.id, donanteNombre: "Empresa Solidaria SA" },
+        { tipo: "RECEPCION", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-2", cantidad: 1000, actorId: voluntario.id, donanteAnonimo: true },
+        { tipo: "RECEPCION", centroId: centro2.id, campanaId: campana.id, articuloId: "seed-art-3", cantidad: 80, actorId: encargado1.id },
+      ],
     });
-    // reflejar en inventario
-    await prisma.inventario.upsert({
-      where: { centroId_insumoId: { centroId: centro1.id, insumoId: insBy("Frijol").id } },
-      update: { cantidad: 50 },
-      create: { centroId: centro1.id, insumoId: insBy("Frijol").id, cantidad: 50 },
+    // Merma en centro1 (motivo obligatorio)
+    await prisma.movimiento.create({
+      data: { tipo: "MERMA", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-1", cantidad: 10, motivo: "DANO", actorId: encargado1.id, nota: "Sacos rotos" },
     });
-    await prisma.inventario.upsert({
-      where: { centroId_insumoId: { centroId: centro1.id, insumoId: insBy("Atún enlatado").id } },
-      update: { cantidad: 200 },
-      create: { centroId: centro1.id, insumoId: insBy("Atún enlatado").id, cantidad: 200 },
+    // Entrega desde centro1 a institución (sin confirmar)
+    await prisma.movimiento.create({
+      data: { tipo: "ENTREGA", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-2", cantidad: 300, actorId: encargado1.id, institucionId: dif.id },
+    });
+    // Transferencia ligada centro1 → centro2 (arroz 50)
+    const salida = await prisma.movimiento.create({
+      data: { tipo: "TRANSFERENCIA_SALIDA", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-1", cantidad: 50, actorId: encargado1.id, centroDestinoId: centro2.id },
+    });
+    await prisma.movimiento.update({ where: { id: salida.id }, data: { grupoTransferencia: salida.id } });
+    await prisma.movimiento.create({
+      data: { tipo: "TRANSFERENCIA_ENTRADA", centroId: centro2.id, campanaId: campana.id, articuloId: "seed-art-1", cantidad: 50, actorId: encargado1.id, centroDestinoId: centro1.id, grupoTransferencia: salida.id },
     });
   }
 
   console.log("Seed completo.");
-  console.log("Usuarios: admin@acopio.mx / coordinador@acopio.mx / voluntario@acopio.mx — pass: password123");
+  console.log("Usuarios (pass: password123):");
+  console.log("  coordinador@acopio.mx  (COORDINADOR)");
+  console.log("  encargado@acopio.mx    (ENCARGADO centro 1)");
+  console.log("  voluntario@acopio.mx   (VOLUNTARIO centro 1)");
+  console.log("  institucion@acopio.mx  (INSTITUCION receptora)");
+  console.log("  lider@acopio.mx        (LIDER_CAMPANA)");
 }
 
 main()

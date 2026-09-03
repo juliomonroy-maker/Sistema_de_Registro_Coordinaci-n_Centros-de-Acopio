@@ -1,78 +1,105 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
+import { puedeVerCentro } from "@/lib/auth";
+import { calcularStock, signoDeMovimiento } from "@/lib/stock";
+import { Tabla, TipoBadge, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function CentroDetallePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CentroDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!puedeVerCentro(session, id)) redirect("/dashboard");
+
   const centro = await prisma.centro.findUnique({
     where: { id },
     include: {
-      inventario: { include: { insumo: { include: { categoria: true } } }, orderBy: { updatedAt: "desc" } },
-      necesidades: { include: { insumo: true }, orderBy: { prioridad: "desc" } },
-      usuarios: { select: { id: true, nombre: true, rol: true } },
+      encargado: { select: { nombre: true, email: true } },
+      miembros: { select: { id: true, nombre: true, rol: true } },
+      campanas: { include: { campana: { select: { nombre: true, activa: true } } } },
     },
   });
   if (!centro) notFound();
 
+  const [stock, movimientos] = await Promise.all([
+    calcularStock({ centroId: id }),
+    prisma.movimiento.findMany({
+      where: { centroId: id },
+      orderBy: { fecha: "desc" },
+      take: 20,
+      include: { articulo: true, actor: { select: { nombre: true } } },
+    }),
+  ]);
+
   return (
     <div>
-      <Link href="/centros" className="text-sm text-brand-700 hover:underline">
-        ← Centros
-      </Link>
-      <div className="mb-6 mt-2 flex items-start justify-between">
+      {session.rol === "COORDINADOR" && (
+        <Link href="/centros" className="text-sm text-brand-700 hover:underline">
+          ← Centros
+        </Link>
+      )}
+      <div className="mb-6 mt-2 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{centro.nombre}</h1>
           <p className="text-sm text-gray-500">
             {centro.direccion}, {centro.ciudad}, {centro.estado}
           </p>
         </div>
-        <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700">
-          {centro.situacion}
-        </span>
+        <div className="flex items-center gap-2">
+          <BotonCsv href={`/api/movimientos/export?centroId=${id}`} label="Movimientos CSV" />
+          <BotonCsv href={`/api/stock/export?centroId=${id}`} label="Stock CSV" />
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-medium ${
+              centro.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {centro.activo ? "Activo" : "Inactivo"}
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-4 text-sm md:grid-cols-3">
-        <Info label="Responsable" value={centro.responsable} />
+        <Info label="Institución operadora" value={centro.institucion} />
+        <Info label="Encargado" value={centro.encargado?.nombre} />
         <Info label="Teléfono" value={centro.telefono} />
-        <Info label="Horario" value={centro.horario} />
-        <Info label="Email" value={centro.email} />
-        <Info label="Capacidad" value={centro.capacidad?.toString()} />
+        <Info
+          label="Campañas"
+          value={centro.campanas.map((c) => c.campana.nombre).join(", ") || null}
+        />
         <Info
           label="Coordenadas"
           value={centro.latitud && centro.longitud ? `${centro.latitud}, ${centro.longitud}` : null}
         />
+        <Info label="Miembros" value={centro.miembros.length.toString()} />
       </div>
 
       <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Inventario</h2>
+        <h2 className="mb-3 text-lg font-semibold">Inventario (stock derivado)</h2>
         <Tabla
-          headers={["Insumo", "Categoría", "Cantidad"]}
-          rows={centro.inventario.map((i) => [
-            i.insumo.nombre,
-            i.insumo.categoria.nombre,
-            `${i.cantidad} ${i.insumo.unidad}`,
-          ])}
-          empty="Sin inventario registrado."
+          headers={["Artículo", "Categoría", "Existencia"]}
+          rows={stock.map((s) => [s.nombre, s.categoria, `${fmtNum(s.cantidad)} ${s.unidad}`])}
+          empty="Sin existencias."
         />
       </section>
 
       <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Necesidades</h2>
+        <h2 className="mb-3 text-lg font-semibold">Movimientos recientes</h2>
         <Tabla
-          headers={["Insumo", "Cantidad", "Prioridad", "Estado"]}
-          rows={centro.necesidades.map((n) => [
-            n.insumo.nombre,
-            `${n.cantidadRequerida} ${n.insumo.unidad}`,
-            n.prioridad,
-            n.cubierta ? "Cubierta" : "Pendiente",
-          ])}
-          empty="Sin necesidades registradas."
+          headers={["Fecha", "Tipo", "Artículo", "Cantidad", "Actor"]}
+          rows={movimientos.map((m) => {
+            const signo = signoDeMovimiento(m.tipo, m.signoPositivo);
+            return [
+              fmtFecha(m.fecha),
+              <TipoBadge key="t" tipo={m.tipo} />,
+              m.articulo.nombre,
+              `${signo > 0 ? "+" : "−"}${fmtNum(m.cantidad)} ${m.articulo.unidad}`,
+              m.actor?.nombre ?? "—",
+            ];
+          })}
+          empty="Sin movimientos."
         />
       </section>
     </div>
@@ -84,50 +111,6 @@ function Info({ label, value }: { label: string; value?: string | null }) {
     <div className="rounded-lg border bg-white p-4">
       <div className="text-xs text-gray-400">{label}</div>
       <div className="mt-0.5 font-medium">{value ?? "—"}</div>
-    </div>
-  );
-}
-
-function Tabla({
-  headers,
-  rows,
-  empty,
-}: {
-  headers: string[];
-  rows: string[][];
-  empty: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border bg-white">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-left text-gray-500">
-          <tr>
-            {headers.map((h) => (
-              <th key={h} className="px-4 py-2">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={headers.length} className="px-4 py-6 text-center text-gray-400">
-                {empty}
-              </td>
-            </tr>
-          )}
-          {rows.map((r, idx) => (
-            <tr key={idx} className="border-t">
-              {r.map((cell, i) => (
-                <td key={i} className="px-4 py-2">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

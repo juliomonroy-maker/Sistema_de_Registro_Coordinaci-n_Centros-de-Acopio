@@ -4,25 +4,26 @@ import { requireUser, requireRole } from "@/lib/auth";
 import { centroCreateSchema } from "@/lib/validation";
 import { ok, handleError } from "@/lib/api";
 
-// GET /api/centros?ciudad=&situacion=&q=
+// GET /api/centros?activo=&campanaId=&q=
 export async function GET(req: NextRequest) {
   try {
     await requireUser();
-    const { searchParams } = new URL(req.url);
-    const ciudad = searchParams.get("ciudad") ?? undefined;
-    const situacion = searchParams.get("situacion") ?? undefined;
-    const q = searchParams.get("q") ?? undefined;
+    const sp = new URL(req.url).searchParams;
+    const activo = sp.get("activo");
+    const campanaId = sp.get("campanaId") ?? undefined;
+    const q = sp.get("q") ?? undefined;
 
     const centros = await prisma.centro.findMany({
       where: {
-        ...(ciudad ? { ciudad } : {}),
-        ...(situacion ? { situacion: situacion as never } : {}),
-        ...(q
-          ? { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { direccion: { contains: q, mode: "insensitive" } }] }
-          : {}),
+        ...(activo !== null ? { activo: activo === "true" } : {}),
+        ...(campanaId ? { campanas: { some: { campanaId } } } : {}),
+        ...(q ? { nombre: { contains: q, mode: "insensitive" } } : {}),
       },
       orderBy: { nombre: "asc" },
-      include: { _count: { select: { inventario: true, necesidades: true } } },
+      include: {
+        encargado: { select: { id: true, nombre: true } },
+        _count: { select: { movimientos: true } },
+      },
     });
     return ok(centros);
   } catch (err) {
@@ -30,12 +31,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/centros  (ADMIN, COORDINADOR)
+// POST /api/centros  — solo COORDINADOR
 export async function POST(req: NextRequest) {
   try {
-    await requireRole("ADMIN", "COORDINADOR");
-    const data = centroCreateSchema.parse(await req.json());
-    const centro = await prisma.centro.create({ data });
+    await requireRole("COORDINADOR");
+    const { campanaIds, ...data } = centroCreateSchema.parse(await req.json());
+    const centro = await prisma.centro.create({
+      data: {
+        ...data,
+        ...(campanaIds?.length
+          ? { campanas: { create: campanaIds.map((campanaId) => ({ campanaId })) } }
+          : {}),
+      },
+    });
     return ok(centro, 201);
   } catch (err) {
     return handleError(err);

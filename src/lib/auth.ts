@@ -1,4 +1,5 @@
 import { getSession, type SessionPayload } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import type { Rol } from "@prisma/client";
 
 export class AuthError extends Error {
@@ -26,3 +27,23 @@ export async function requireRole(...roles: Rol[]): Promise<SessionPayload> {
   }
   return session;
 }
+
+// ─────────────────  Acceso a recursos concretos (anti-IDOR)  ──────────────────
+
+/** ¿Puede ver el detalle/stock/movimientos de un centro? Coordinador o miembro del centro. */
+export function puedeVerCentro(session: SessionPayload, centroId: string): boolean {
+  if (session.rol === "COORDINADOR") return true;
+  if (session.rol === "ENCARGADO" || session.rol === "VOLUNTARIO") return session.centroId === centroId;
+  return false;
+}
+
+/** ¿Puede ver el detalle/agregado de una campaña? Coordinador o su líder. */
+export async function puedeVerCampana(session: SessionPayload, campanaId: string): Promise<boolean> {
+  if (session.rol === "COORDINADOR") return true;
+  if (session.rol !== "LIDER_CAMPANA") return false;
+  const c = await prisma.campana.findUnique({ where: { id: campanaId }, select: { liderId: true } });
+  return c?.liderId === session.userId;
+}
+
+/** ¿Puede editar una campaña (datos, centros participantes, metas)? Coordinador o su líder. */
+export const puedeGestionarCampana = puedeVerCampana;

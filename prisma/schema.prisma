@@ -1,5 +1,6 @@
 // Sistema de Registro y Coordinación de Centros de Acopio
-// Prisma schema — PostgreSQL
+// Modelo alineado a INSTRUCCIONES_PROYECTO.md: ledger de Movimientos,
+// stock derivado, campañas, instituciones receptoras y 5 roles.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,208 +11,224 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─────────────────────────────  Usuarios / Roles  ─────────────────────────────
+// ───────────────────────────────  Enums  ──────────────────────────────────────
 
 enum Rol {
-  ADMIN // gestiona todo el sistema
-  COORDINADOR // gestiona uno o varios centros y aprueba transferencias
-  VOLUNTARIO // registra donaciones y actualiza inventario de su centro
+  COORDINADOR // coordinador general: registra centros/campañas, ve todo
+  ENCARGADO // encargado de centro: registra todos los movimientos de su centro
+  VOLUNTARIO // apoya recepciones y entregas; NO merma ni ajuste ni config
+  INSTITUCION // institución receptora: ve y confirma entregas canalizadas
+  LIDER_CAMPANA // opcional: gestiona una campaña y ve su dashboard agregado
 }
+
+enum CategoriaArticulo {
+  NO_PERECEDERO
+  PERECEDERO
+  ROPA
+  LIMPIEZA
+  MEDICAMENTO
+  OTRO
+}
+
+enum Unidad {
+  PIEZA
+  KG
+  L
+  BOLSA
+  CAJA
+}
+
+enum TipoMovimiento {
+  RECEPCION // entrada por donación
+  ENTREGA // salida hacia institución/beneficiario
+  MERMA // salida por pérdida (requiere motivo)
+  TRANSFERENCIA_SALIDA // salida hacia otro centro (ligada)
+  TRANSFERENCIA_ENTRADA // entrada desde otro centro (ligada)
+  AJUSTE // corrección manual +/- (requiere motivo)
+}
+
+enum Motivo {
+  CADUCIDAD
+  DANO
+  PERDIDA
+  CORRECCION
+  OTRO
+}
+
+// ───────────────────────────────  Usuarios  ───────────────────────────────────
 
 model Usuario {
-  id           String   @id @default(cuid())
+  id           String       @id @default(cuid())
   nombre       String
-  email        String   @unique
+  email        String       @unique
   passwordHash String
-  rol          Rol      @default(VOLUNTARIO)
-  activo       Boolean  @default(true)
-  // Centro al que pertenece el usuario (coordinador/voluntario). Admin puede ser null.
+  rol          Rol          @default(VOLUNTARIO)
+  activo       Boolean      @default(true)
+  // Encargado/voluntario pertenecen a un centro
   centroId     String?
-  centro       Centro?  @relation(fields: [centroId], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  centro       Centro?      @relation("CentroMiembros", fields: [centroId], references: [id], onDelete: SetNull)
+  // Usuario de tipo institución receptora
+  institucionId String?
+  institucion  Institucion? @relation(fields: [institucionId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  donacionesRegistradas Donacion[]      @relation("DonacionRegistradaPor")
-  transferenciasCreadas Transferencia[] @relation("TransferenciaCreadaPor")
+  movimientos       Movimiento[] @relation("MovimientoActor")
+  centrosACargo     Centro[]     @relation("CentroEncargado")
+  campanasLideradas Campana[]    @relation("CampanaLider")
 
   @@index([centroId])
+  @@index([institucionId])
 }
 
-// ─────────────────────────────  Centros de Acopio  ────────────────────────────
+// ───────────────────────────────  Campañas  ───────────────────────────────────
 
-enum EstadoCentro {
-  ACTIVO
-  INACTIVO
-  LLENO // sin capacidad para recibir más insumos
-}
-
-model Centro {
-  id          String       @id @default(cuid())
+model Campana {
+  id          String    @id @default(cuid())
   nombre      String
   descripcion String?
-  // Ubicación
+  fechaInicio DateTime  @default(now())
+  fechaFin    DateTime?
+  meta        String? // meta u objetivo de la campaña (texto libre)
+  activa      Boolean   @default(true)
+  liderId     String?
+  lider       Usuario?  @relation("CampanaLider", fields: [liderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  centros     CentroCampana[]
+  movimientos Movimiento[]
+  metas       MetaCampana[]
+
+  @@index([activa])
+}
+
+// Meta cuantitativa por artículo: cuánto se espera RECIBIR (donaciones) en la campaña.
+// El avance se deriva del ledger (suma de RECEPCION del artículo en la campaña).
+model MetaCampana {
+  id               String   @id @default(cuid())
+  campanaId        String
+  campana          Campana  @relation(fields: [campanaId], references: [id], onDelete: Cascade)
+  articuloId       String
+  articulo         Articulo @relation(fields: [articuloId], references: [id], onDelete: Restrict)
+  cantidadObjetivo Float // > 0, en la unidad del artículo
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([campanaId, articuloId])
+  @@index([campanaId])
+}
+
+// ───────────────────────────────  Centros  ────────────────────────────────────
+
+model Centro {
+  id          String   @id @default(cuid())
+  nombre      String
+  institucion String? // organización que opera el centro (texto)
   direccion   String
   ciudad      String
-  estado      String // entidad federativa
-  cp          String?
+  estado      String
   latitud     Float?
   longitud    Float?
-  // Contacto y operación
   telefono    String?
-  email       String?
-  responsable String?
-  horario     String? // texto libre, ej. "Lun-Vie 9:00-18:00"
-  capacidad   Int? // capacidad total estimada (unidades/m3), opcional
-  situacion   EstadoCentro @default(ACTIVO)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  encargadoId String?
+  encargado   Usuario? @relation("CentroEncargado", fields: [encargadoId], references: [id], onDelete: SetNull)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  usuarios              Usuario[]
-  inventario            Inventario[]
-  donaciones            Donacion[]
-  necesidades           Necesidad[]
-  transferenciasOrigen  Transferencia[] @relation("TransferenciaOrigen")
-  transferenciasDestino Transferencia[] @relation("TransferenciaDestino")
+  miembros              Usuario[]       @relation("CentroMiembros")
+  campanas              CentroCampana[]
+  movimientos           Movimiento[]    @relation("MovimientoCentro")
+  transferenciasEntrantes Movimiento[]  @relation("MovimientoCentroDestino")
 
-  @@index([situacion])
+  @@index([activo])
   @@index([ciudad])
 }
 
-// ─────────────────────────────  Catálogo de Insumos  ──────────────────────────
-
-model Categoria {
-  id        String    @id @default(cuid())
-  nombre    String    @unique // Alimentos, Ropa, Medicamentos, Higiene, Agua...
-  descripcion String?
-  insumos   Insumo[]
-  createdAt DateTime  @default(now())
-}
-
-model Insumo {
-  id          String   @id @default(cuid())
-  nombre      String
-  unidad      String // kg, pza, litro, caja...
-  categoriaId String
-  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
-  createdAt   DateTime @default(now())
-
-  inventario       Inventario[]
-  donacionItems    DonacionItem[]
-  necesidades      Necesidad[]
-  transferenciaItems TransferenciaItem[]
-
-  @@unique([nombre, categoriaId])
-  @@index([categoriaId])
-}
-
-// ─────────────────────────────  Inventario por Centro  ────────────────────────
-
-model Inventario {
-  id        String   @id @default(cuid())
+// Centros participantes por campaña (N:M)
+model CentroCampana {
   centroId  String
-  centro    Centro   @relation(fields: [centroId], references: [id], onDelete: Cascade)
-  insumoId  String
-  insumo    Insumo   @relation(fields: [insumoId], references: [id], onDelete: Restrict)
-  cantidad  Float    @default(0)
-  updatedAt DateTime @updatedAt
+  centro    Centro  @relation(fields: [centroId], references: [id], onDelete: Cascade)
+  campanaId String
+  campana   Campana @relation(fields: [campanaId], references: [id], onDelete: Cascade)
 
-  @@unique([centroId, insumoId])
+  @@id([centroId, campanaId])
+  @@index([campanaId])
+}
+
+// ────────────────────────  Instituciones receptoras  ──────────────────────────
+
+model Institucion {
+  id        String   @id @default(cuid())
+  nombre    String
+  contacto  String?
+  telefono  String?
+  direccion String?
+  createdAt DateTime @default(now())
+
+  usuarios Usuario[]
+  entregas Movimiento[] @relation("MovimientoInstitucion")
+}
+
+// ───────────────────────────────  Artículos  ──────────────────────────────────
+
+model Articulo {
+  id        String            @id @default(cuid())
+  nombre    String
+  categoria CategoriaArticulo
+  unidad    Unidad
+  createdAt DateTime          @default(now())
+
+  movimientos Movimiento[]
+  metas       MetaCampana[]
+
+  @@unique([nombre, categoria, unidad])
+  @@index([categoria])
+}
+
+// ───────────────  Movimientos (ledger único; stock derivado)  ──────────────────
+
+model Movimiento {
+  id         String         @id @default(cuid())
+  tipo       TipoMovimiento
+  centroId   String
+  centro     Centro         @relation("MovimientoCentro", fields: [centroId], references: [id], onDelete: Cascade)
+  campanaId  String
+  campana    Campana        @relation(fields: [campanaId], references: [id], onDelete: Restrict)
+  articuloId String
+  articulo   Articulo       @relation(fields: [articuloId], references: [id], onDelete: Restrict)
+  cantidad   Float // siempre > 0; el signo lo determina el tipo (y signoPositivo en AJUSTE)
+  signoPositivo Boolean     @default(true) // solo relevante en AJUSTE: true suma, false resta
+  fecha      DateTime       @default(now())
+  motivo     Motivo? // obligatorio en MERMA y AJUSTE
+  nota       String?
+
+  // Actor: quién registró el movimiento (trazabilidad)
+  actorId String?
+  actor   Usuario? @relation("MovimientoActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  // RECEPCION: datos del donante (opcional / anónimo)
+  donanteNombre  String?
+  donanteAnonimo Boolean @default(false)
+
+  // ENTREGA: institución receptora y confirmación
+  institucionId      String?
+  institucion        Institucion? @relation("MovimientoInstitucion", fields: [institucionId], references: [id], onDelete: SetNull)
+  confirmadaRecibida Boolean      @default(false)
+  confirmadaAt       DateTime?
+
+  // TRANSFERENCIA: liga salida+entrada (mismo grupoTransferencia) y centro contraparte
+  grupoTransferencia String? // mismo valor en la salida y la entrada ligadas
+  centroDestinoId    String?
+  centroDestino      Centro? @relation("MovimientoCentroDestino", fields: [centroDestinoId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
   @@index([centroId])
-  @@index([insumoId])
-}
-
-// ─────────────────────────────  Donaciones (entradas)  ────────────────────────
-
-model Donacion {
-  id            String   @id @default(cuid())
-  centroId      String
-  centro        Centro   @relation(fields: [centroId], references: [id], onDelete: Cascade)
-  donanteNombre String?
-  donanteTel    String?
-  notas         String?
-  fecha         DateTime @default(now())
-  registradaPorId String?
-  registradaPor Usuario? @relation("DonacionRegistradaPor", fields: [registradaPorId], references: [id], onDelete: SetNull)
-
-  items DonacionItem[]
-
-  @@index([centroId])
-  @@index([fecha])
-}
-
-model DonacionItem {
-  id         String   @id @default(cuid())
-  donacionId String
-  donacion   Donacion @relation(fields: [donacionId], references: [id], onDelete: Cascade)
-  insumoId   String
-  insumo     Insumo   @relation(fields: [insumoId], references: [id], onDelete: Restrict)
-  cantidad   Float
-
-  @@index([donacionId])
-}
-
-// ─────────────────────────────  Necesidades por Centro  ───────────────────────
-
-enum Prioridad {
-  BAJA
-  MEDIA
-  ALTA
-  URGENTE
-}
-
-model Necesidad {
-  id                String    @id @default(cuid())
-  centroId          String
-  centro            Centro    @relation(fields: [centroId], references: [id], onDelete: Cascade)
-  insumoId          String
-  insumo            Insumo    @relation(fields: [insumoId], references: [id], onDelete: Restrict)
-  cantidadRequerida Float
-  prioridad         Prioridad @default(MEDIA)
-  cubierta          Boolean   @default(false)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([centroId])
-  @@index([prioridad])
-}
-
-// ─────────────────────────  Transferencias (coordinación)  ────────────────────
-
-enum EstadoTransferencia {
-  SOLICITADA
-  APROBADA
-  EN_TRANSITO
-  COMPLETADA
-  CANCELADA
-}
-
-model Transferencia {
-  id         String              @id @default(cuid())
-  origenId   String
-  origen     Centro              @relation("TransferenciaOrigen", fields: [origenId], references: [id], onDelete: Restrict)
-  destinoId  String
-  destino    Centro              @relation("TransferenciaDestino", fields: [destinoId], references: [id], onDelete: Restrict)
-  estado     EstadoTransferencia @default(SOLICITADA)
-  notas      String?
-  creadaPorId String?
-  creadaPor  Usuario?            @relation("TransferenciaCreadaPor", fields: [creadaPorId], references: [id], onDelete: SetNull)
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-
-  items TransferenciaItem[]
-
-  @@index([origenId])
-  @@index([destinoId])
-  @@index([estado])
-}
-
-model TransferenciaItem {
-  id              String        @id @default(cuid())
-  transferenciaId String
-  transferencia   Transferencia @relation(fields: [transferenciaId], references: [id], onDelete: Cascade)
-  insumoId        String
-  insumo          Insumo        @relation(fields: [insumoId], references: [id], onDelete: Restrict)
-  cantidad        Float
-
-  @@index([transferenciaId])
+  @@index([campanaId])
+  @@index([articuloId])
+  @@index([tipo])
+  @@index([grupoTransferencia])
+  @@index([institucionId])
 }

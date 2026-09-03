@@ -23,18 +23,13 @@ export default function NuevoCentroPage() {
         method: "POST",
         body: JSON.stringify({
           nombre: fd.get("nombre"),
-          descripcion: fd.get("descripcion") || undefined,
+          institucion: fd.get("institucion") || undefined,
           direccion: fd.get("direccion"),
           ciudad: fd.get("ciudad"),
           estado: fd.get("estado"),
-          cp: fd.get("cp") || undefined,
           telefono: fd.get("telefono") || undefined,
-          email: fd.get("email") || undefined,
-          responsable: fd.get("responsable") || undefined,
-          horario: fd.get("horario") || undefined,
           latitud: num("latitud"),
           longitud: num("longitud"),
-          capacidad: num("capacidad"),
         }),
       });
       router.push(`/centros/${centro.id}`);
@@ -58,8 +53,8 @@ export default function NuevoCentroPage() {
           <input name="nombre" required className={field} />
         </label>
         <label className="col-span-2 text-sm">
-          <span className="mb-1 block font-medium">Descripción</span>
-          <textarea name="descripcion" rows={2} className={field} />
+          <span className="mb-1 block font-medium">Institución operadora</span>
+          <input name="institucion" placeholder="Escuela, ONG, etc." className={field} />
         </label>
         <label className="col-span-2 text-sm">
           <span className="mb-1 block font-medium">Dirección *</span>
@@ -74,29 +69,10 @@ export default function NuevoCentroPage() {
           <input name="estado" required className={field} />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">C.P.</span>
-          <input name="cp" className={field} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Responsable</span>
-          <input name="responsable" className={field} />
-        </label>
-        <label className="text-sm">
           <span className="mb-1 block font-medium">Teléfono</span>
           <input name="telefono" className={field} />
         </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Email</span>
-          <input name="email" type="email" className={field} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Horario</span>
-          <input name="horario" placeholder="Lun-Vie 9:00-18:00" className={field} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Capacidad</span>
-          <input name="capacidad" type="number" className={field} />
-        </label>
+        <div />
         <label className="text-sm">
           <span className="mb-1 block font-medium">Latitud</span>
           <input name="latitud" type="number" step="any" className={field} />

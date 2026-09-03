@@ -15,11 +15,11 @@ export async function middleware(req: NextRequest) {
   if (isPublic(pathname)) return NextResponse.next();
 
   const token = req.cookies.get(COOKIE_NAME)?.value;
+  const secret = process.env.AUTH_SECRET;
   let valid = false;
-  if (token) {
+  if (token && secret && secret.length >= 32) {
     try {
-      const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
-      await jwtVerify(token, secret);
+      await jwtVerify(token, new TextEncoder().encode(secret));
       valid = true;
     } catch {
       valid = false;

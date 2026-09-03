@@ -4,6 +4,11 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/fetcher";
 
+// Solo rutas internas: evita open redirect vía ?next=https://... o //evil.
+function destinoSeguro(next: string | null): string {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+}
+
 export default function LoginPage() {
   return (
     <Suspense>
@@ -29,7 +34,7 @@ function LoginForm() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      router.push(params.get("next") ?? "/dashboard");
+      router.push(destinoSeguro(params.get("next")));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");

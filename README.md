@@ -65,3 +65,4 @@ npm run dev             # http://localhost:3000
 - **Donaciones** — entradas de insumos; suman al inventario del centro.
 - **Necesidades** — insumos que requiere cada centro, con prioridad.
 - **Transferencias** — envío de insumos entre centros; al completarse mueve el inventario.
+# Sistema_de_Registro_Coordinaci-n_Centros-de-Acopio

@@ -131,3 +131,12 @@ Toda la documentación vive en [`docs/`](docs/README.md):
 - El **voluntario** solo registra recepciones y entregas.
 - El **donante** no tiene cuenta; sus datos son opcionales (puede ser anónimo).
 
+**#claves de acceso**
+ Rol                  | Email                   | Contraseña   |
+|----------------------|-------------------------|--------------|
+| Coordinador general  | coordinador@acopio.mx   | password123  |
+| Encargado de centro  | encargado@acopio.mx     | password123  |
+| Voluntario           | voluntario@acopio.mx    | password123  |
+| Institución receptora| institucion@acopio.mx   | password123  |
+| Líder de campaña     | lider@acopio.mx         | password123  |
+

@@ -77,9 +77,10 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
 
   const u = await prisma.usuario.findUnique({
     where: { id: userId },
-    select: { id: true, nombre: true, email: true, rol: true, activo: true, centroId: true, institucionId: true },
+    select: { id: true, nombre: true, email: true, rol: true, activo: true, estado: true, centroId: true, institucionId: true },
   });
-  if (!u || !u.activo) return null;
+  // Cuenta inactiva o aún no aprobada (registro público de voluntario) = sin sesión.
+  if (!u || !u.activo || u.estado !== "APROBADO") return null;
 
   return {
     userId: u.id,

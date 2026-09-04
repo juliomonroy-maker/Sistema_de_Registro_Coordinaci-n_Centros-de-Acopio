@@ -1,4 +1,4 @@
-# Sistema de Registro y Coordinación de Centros de Acopio
+# SCCA — Sistema de Coordinación de Centros de Acopio
 
 App web para registrar centros de acopio, llevar su inventario, capturar donaciones, publicar necesidades y coordinar transferencias de insumos entre centros.
 
@@ -72,6 +72,7 @@ firewall permita el puerto.
 | Voluntario           | voluntario@acopio.mx    | password123  |
 | Institución receptora| institucion@acopio.mx   | password123  |
 | Líder de campaña     | lider@acopio.mx         | password123  |
+| Voluntario pendiente | voluntario.pendiente@acopio.mx | password123 (no puede entrar hasta ser aprobado) |
 
 ## Scripts
 
@@ -88,6 +89,16 @@ firewall permita el puerto.
 | `npm run db:studio` | Explorar la BD con Prisma Studio         |
 | `npm run db:reset`  | Reiniciar la BD y re-sembrar             |
 
+## Documentación
+
+Toda la documentación vive en [`docs/`](docs/README.md):
+
+- [docs/ESPECIFICACION.md](docs/ESPECIFICACION.md) — especificación funcional del reto (fuente de verdad).
+- [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) — cómo está construido y por qué.
+- [docs/API.md](docs/API.md) — referencia de cada endpoint.
+- [docs/MANUAL_USUARIO.md](docs/MANUAL_USUARIO.md) — qué hace cada rol, con guion de demo.
+- [docs/reportes/](docs/reportes/) — un reporte fechado por cada tanda de cambios.
+
 ## Módulos
 
 - **Centros** — registro y ficha de cada centro de acopio (coordinador los da de alta).
@@ -96,12 +107,16 @@ firewall permita el puerto.
 - **Instituciones receptoras** — reciben entregas canalizadas y las confirman.
 - **Dashboards por rol** — global (coordinador), por centro (encargado/voluntario), por campaña (líder), entregas (institución).
 - **Metas por campaña** — objetivo de recolección por artículo (`MetaCampana`); el avance se deriva de las recepciones del ledger y se muestra con barras de progreso en la campaña y en los dashboards de coordinador y líder.
-- **Exportación CSV** — `GET /api/movimientos/export` (ledger completo con filtros `centroId`, `campanaId`, `tipo`, `desde`, `hasta`) y `GET /api/stock/export` (inventario derivado). Mismo alcance por rol que las pantallas; UTF-8 con BOM para Excel.
+- **Exportación CSV** — `GET /api/movimientos/export` (ledger completo con filtros `centroId`, `campanaId`, `tipo`, `estado`, `desde`, `hasta`) y `GET /api/stock/export` (inventario derivado). Mismo alcance por rol que las pantallas; UTF-8 con BOM para Excel.
+- **Mapa de centros** — `/mapa` con Leaflet + OpenStreetMap (sin API key): marcadores por centro con existencia total; mini-mapa en la ficha del centro; selector por clic al dar de alta un centro. La pantalla de **inicio de sesión** muestra a la izquierda el mapa público de puntos de donación (solo nombre y dirección). El seed incluye 14 centros reales de **Tampico, Tamaulipas**.
+- **Gráficas** — en cada dashboard: actividad diaria (recibido/entregado/merma, 30 días), stock por categoría, top artículos, recibido por centro, avance de metas y comparativa por campaña. Todo derivado del ledger.
+- **Aprobación de merma** — el encargado *solicita* la merma (queda `PENDIENTE`, no descuenta stock); el coordinador la aprueba o rechaza en `/aprobaciones`. Solo las mermas aprobadas afectan el stock.
+- **Aprobación de voluntarios** — registro público en `/registro`; la cuenta queda `PENDIENTE` y no puede iniciar sesión hasta que el encargado de su centro o el coordinador la apruebe.
 
 ## Reglas clave (spec)
 
 - Stock = suma de movimientos con signo; corrección solo vía movimiento de **ajuste** (con motivo).
-- **Merma** y **ajuste** requieren motivo obligatorio.
+- **Merma** y **ajuste** requieren motivo obligatorio. La merma del encargado necesita aprobación del coordinador; solo los movimientos `APROBADO` suman al stock.
 - **Transferencia** = dos movimientos ligados (salida + entrada) en una transacción atómica.
 - Un movimiento solo se admite si el centro está **activo**, la campaña **activa** y el centro **participa** en la campaña.
 - Las salidas concurrentes sobre una misma línea de stock se serializan con un lock consultivo de Postgres: el stock nunca queda negativo.

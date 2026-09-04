@@ -27,24 +27,27 @@ export async function GET(req: NextRequest) {
         campana: { select: { nombre: true } },
         articulo: { select: { nombre: true, categoria: true, unidad: true } },
         actor: { select: { nombre: true } },
+        aprobadoPor: { select: { nombre: true } },
         institucion: { select: { nombre: true } },
       },
     });
 
     const headers = [
-      "id", "fecha", "tipo", "signo", "centro", "campana", "articulo", "categoria", "unidad",
+      "id", "fecha", "tipo", "estado", "signo", "centro", "campana", "articulo", "categoria", "unidad",
       "cantidad", "cantidad_con_signo", "motivo", "nota", "actor", "donante", "donante_anonimo",
       "institucion", "entrega_confirmada", "fecha_confirmacion", "centro_contraparte", "grupo_transferencia",
+      "resuelto_por", "fecha_resolucion", "motivo_rechazo",
     ];
     const rows = movs.map((m) => {
       const signo = signoDeMovimiento(m.tipo, m.signoPositivo);
       return [
-        m.id, m.fecha, m.tipo, signo > 0 ? "ENTRADA" : "SALIDA", m.centro.nombre, m.campana.nombre,
+        m.id, m.fecha, m.tipo, m.estado, signo > 0 ? "ENTRADA" : "SALIDA", m.centro.nombre, m.campana.nombre,
         m.articulo.nombre, m.articulo.categoria, m.articulo.unidad,
         m.cantidad, signo * m.cantidad, m.motivo, m.nota, m.actor?.nombre,
         m.donanteAnonimo ? "Anónimo" : m.donanteNombre, m.donanteAnonimo,
         m.institucion?.nombre, m.tipo === "ENTREGA" ? m.confirmadaRecibida : null, m.confirmadaAt,
         m.centroDestino?.nombre, m.grupoTransferencia,
+        m.aprobadoPor?.nombre, m.resueltoAt, m.motivoRechazo,
       ];
     });
 

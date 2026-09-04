@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     const usuario = await prisma.usuario.findUnique({ where: { email } });
     const okPass = await verifyPassword(body.password, usuario?.passwordHash ?? HASH_SENUELO);
     if (!usuario || !usuario.activo || !okPass) return fail("Credenciales inválidas.", 401);
+    // Solo tras verificar la contraseña se revela el estado de aprobación (no filtra existencia de cuentas).
+    if (usuario.estado === "PENDIENTE") return fail("Tu cuenta está pendiente de aprobación por el encargado o el coordinador.", 403);
+    if (usuario.estado === "RECHAZADO") return fail("Tu solicitud de cuenta fue rechazada. Contacta al coordinador.", 403);
 
     const { id, nombre, rol, centroId, institucionId } = usuario;
     await createSession({ userId: id, nombre, email: usuario.email, rol, centroId, institucionId });

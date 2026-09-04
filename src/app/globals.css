@@ -3,9 +3,128 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+}
+
+html {
+  background: #0a0a0a;
 }
 
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  @apply min-h-dvh bg-bg text-ink antialiased;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Superficies del navegador que también llevan el diseño. */
+::selection {
+  background: #f4f4f4;
+  color: #0a0a0a;
+}
+* {
+  caret-color: #f4f4f4;
+  scrollbar-color: #363636 transparent;
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #363636;
+  border: 3px solid #0a0a0a;
+  border-radius: 8px;
+}
+:focus-visible {
+  outline: 2px solid #f4f4f4;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+a,
+button,
+[role="button"],
+select,
+summary {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+input,
+select,
+textarea,
+button {
+  transition:
+    background-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Mapa (Leaflet): teselas de OpenStreetMap oscurecidas por CSS, sin proveedor con API key. */
+.tiles-oscuro {
+  filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.95) saturate(0.4);
+}
+.leaflet-container {
+  background: #0a0a0a;
+  font-family: inherit;
+}
+.leaflet-control-zoom a {
+  background: #121212 !important;
+  color: #f4f4f4 !important;
+  border-color: #262626 !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #222222 !important;
+}
+.leaflet-bar {
+  border: 1px solid #262626 !important;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.7) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(10, 10, 10, 0.8) !important;
+  color: #8a8a8a !important;
+}
+.leaflet-control-attribution a {
+  color: #b9b9b9 !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #121212;
+  color: #f4f4f4;
+  border: 1px solid #262626;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.7);
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+}
+.leaflet-popup-close-button {
+  color: #8a8a8a !important;
+}
+.leaflet-tooltip {
+  background: #121212;
+  color: #f4f4f4;
+  border: 1px solid #262626;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: #262626;
 }

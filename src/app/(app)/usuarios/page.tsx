@@ -13,7 +13,7 @@ export default async function UsuariosPage() {
     prisma.usuario.findMany({
       orderBy: [{ activo: "desc" }, { nombre: "asc" }],
       select: {
-        id: true, nombre: true, email: true, rol: true, activo: true,
+        id: true, nombre: true, email: true, rol: true, activo: true, estado: true,
         centro: { select: { id: true, nombre: true } },
         institucion: { select: { id: true, nombre: true } },
       },
@@ -24,9 +24,11 @@ export default async function UsuariosPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">Usuarios</h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <h1 className="mb-1 text-2xl font-semibold tracking-tight sm:text-3xl">Usuarios</h1>
+      <p className="mb-6 text-sm text-ink-3">
         Cuentas del sistema. Encargados y voluntarios se ligan a un centro; instituciones receptoras a su institución.
+        Los voluntarios que se registran solos aparecen &quot;Pendiente de aprobación&quot;: apruébalos en{" "}
+        <a href="/aprobaciones" className="text-ink underline-offset-4 hover:underline">Aprobaciones</a>.
       </p>
       <UsuariosAdmin usuarios={usuarios} centros={centros} instituciones={instituciones} miId={session.userId} />
     </div>

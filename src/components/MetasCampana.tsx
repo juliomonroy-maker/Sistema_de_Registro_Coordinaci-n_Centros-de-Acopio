@@ -8,7 +8,7 @@ import type { ProgresoMeta } from "@/lib/stock";
 type Articulo = { id: string; nombre: string; unidad: string };
 type Fila = { articuloId: string; cantidadObjetivo: number };
 
-const field = "rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none";
+const field = "min-h-11 rounded-md border border-line-2 bg-bg px-3 py-2 text-base text-ink focus:border-ink focus:outline-none sm:text-sm";
 
 /**
  * Metas por artículo de una campaña con avance (recibido vs objetivo).
@@ -57,25 +57,25 @@ export function MetasCampana({ campanaId, inicial, editable }: { campanaId: stri
   const usados = new Set(filas.map((f) => f.articuloId));
 
   return (
-    <section className="rounded-xl border bg-white p-5">
+    <section className="rounded-xl border border-line bg-surface p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Metas de recolección</h2>
+        <h2 className="text-base font-semibold sm:text-lg">Metas de recolección</h2>
         {editable && !editando && (
-          <button onClick={abrirEdicion} className="rounded-md border px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100">
+          <button onClick={abrirEdicion} className="inline-flex min-h-11 items-center rounded-md border border-line-2 px-3 text-sm font-medium text-ink hover:bg-surface-3">
             {metas.length ? "Editar metas" : "+ Definir metas"}
           </button>
         )}
       </div>
-      {error && <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</div>}
 
       {!editando && (
         <ul className="grid gap-4 md:grid-cols-2">
-          {metas.length === 0 && <li className="text-sm text-gray-400">Sin metas definidas.</li>}
+          {metas.length === 0 && <li className="text-sm text-ink-3">Sin metas definidas.</li>}
           {metas.map((m) => (
             <li key={m.id}>
               <div className="mb-1 flex justify-between text-sm">
                 <span className="font-medium">{m.nombre}</span>
-                <span className="text-gray-500">
+                <span className="text-ink-3">
                   {fmtNum(m.recibido)} / {fmtNum(m.objetivo)} {m.unidad} · <b>{m.porcentaje}%</b>
                 </span>
               </div>
@@ -108,23 +108,23 @@ export function MetasCampana({ campanaId, inicial, editable }: { campanaId: stri
                 placeholder="Objetivo"
                 className={`${field} w-32`}
               />
-              <button onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))} className="px-2 text-gray-400 hover:text-red-600" aria-label="Quitar">
-                ✕
+              <button onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))} className="inline-flex h-11 w-11 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-danger" aria-label="Quitar meta">
+                <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
               </button>
             </div>
           ))}
           <div className="mt-2 flex gap-2">
-            <button onClick={() => setFilas((fs) => [...fs, { articuloId: "", cantidadObjetivo: 0 }])} className="rounded-md border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+            <button onClick={() => setFilas((fs) => [...fs, { articuloId: "", cantidadObjetivo: 0 }])} className="rounded-md border px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-3">
               + Agregar artículo
             </button>
             <button
               onClick={guardar}
               disabled={guardando || filas.some((f) => !f.articuloId || !(f.cantidadObjetivo > 0))}
-              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              className="rounded-md bg-ink px-3 py-1.5 text-sm font-semibold text-bg hover:bg-ink-2 disabled:opacity-60"
             >
               {guardando ? "Guardando…" : "Guardar"}
             </button>
-            <button onClick={() => setEditando(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:underline">
+            <button onClick={() => setEditando(false)} className="px-3 py-1.5 text-sm text-ink-2 hover:underline">
               Cancelar
             </button>
           </div>

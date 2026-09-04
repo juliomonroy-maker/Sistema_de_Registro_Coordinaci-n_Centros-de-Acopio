@@ -5,7 +5,7 @@ import { getSession } from "@/lib/session";
 import { alcanceMovimientos } from "@/lib/movimientos";
 import { signoDeMovimiento } from "@/lib/stock";
 import { movimientosFiltroSchema } from "@/lib/validation";
-import { Tabla, TipoBadge, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
+import { Tabla, TipoBadge, EstadoBadge, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ const TIPOS = [
   ["AJUSTE", "Ajuste"],
 ] as const;
 
-const field = "rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none";
+const field = "min-h-11 rounded-md border border-line-2 bg-bg px-2 py-1.5 text-base text-ink focus:border-ink focus:outline-none sm:min-h-9 sm:text-sm";
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -55,20 +55,20 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Movimientos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Movimientos</h1>
         <div className="flex gap-2">
           <BotonCsv href={`/api/movimientos/export${qs ? `?${qs}` : ""}`} />
           {puedeRegistrar && (
-            <Link href="/movimientos/nuevo" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+            <Link href="/movimientos/nuevo" className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-bg hover:bg-ink-2">
               + Registrar
             </Link>
           )}
         </div>
       </div>
 
-      <form method="get" className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border bg-white p-3 text-sm">
+      <form method="get" className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-line bg-surface p-3 text-sm">
         <label>
-          <span className="block text-xs text-gray-500">Tipo</span>
+          <span className="block text-xs text-ink-3">Tipo</span>
           <select name="tipo" defaultValue={crudo.tipo ?? ""} className={field}>
             <option value="">Todos</option>
             {TIPOS.map(([v, l]) => (
@@ -78,7 +78,7 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
         </label>
         {session.rol !== "INSTITUCION" && (
           <label>
-            <span className="block text-xs text-gray-500">Campaña</span>
+            <span className="block text-xs text-ink-3">Campaña</span>
             <select name="campanaId" defaultValue={crudo.campanaId ?? ""} className={field}>
               <option value="">Todas</option>
               {campanas.map((c) => (
@@ -87,23 +87,34 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
             </select>
           </label>
         )}
+        {session.rol !== "INSTITUCION" && (
+          <label>
+            <span className="block text-xs text-ink-3">Estado</span>
+            <select name="estado" defaultValue={crudo.estado ?? ""} className={field}>
+              <option value="">Todos</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="RECHAZADO">Rechazado</option>
+            </select>
+          </label>
+        )}
         <label>
-          <span className="block text-xs text-gray-500">Desde</span>
+          <span className="block text-xs text-ink-3">Desde</span>
           <input type="date" name="desde" defaultValue={crudo.desde ?? ""} className={field} />
         </label>
         <label>
-          <span className="block text-xs text-gray-500">Hasta</span>
+          <span className="block text-xs text-ink-3">Hasta</span>
           <input type="date" name="hasta" defaultValue={crudo.hasta ?? ""} className={field} />
         </label>
-        <button type="submit" className="rounded-md border px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-100">
+        <button type="submit" className="inline-flex min-h-11 items-center rounded-md border border-line-2 px-3 font-medium text-ink hover:bg-surface-3 sm:min-h-9">
           Filtrar
         </button>
         {qs && (
-          <Link href="/movimientos" className="px-2 py-1.5 text-gray-500 hover:underline">
+          <Link href="/movimientos" className="px-2 py-1.5 text-ink-3 hover:underline">
             Limpiar
           </Link>
         )}
-        <span className="ml-auto text-xs text-gray-400">{movimientos.length} resultados{movimientos.length === 200 ? " (máx. 200; usa CSV para todo)" : ""}</span>
+        <span className="ml-auto text-xs text-ink-3">{movimientos.length} resultados{movimientos.length === 200 ? " (máx. 200; usa CSV para todo)" : ""}</span>
       </form>
 
       <Tabla
@@ -113,10 +124,13 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
           const destino = m.institucion?.nombre ?? m.centroDestino?.nombre ?? "—";
           return [
             fmtFecha(m.fecha),
-            <TipoBadge key="t" tipo={m.tipo} />,
+            <span key="t" className="inline-flex flex-wrap gap-1">
+              <TipoBadge tipo={m.tipo} />
+              <EstadoBadge estado={m.estado} />
+            </span>,
             m.centro.nombre,
             m.articulo.nombre,
-            <span key="c" className={signo > 0 ? "text-green-700" : "text-red-700"}>
+            <span key="c" className={signo > 0 ? "text-ink" : "text-danger"}>
               {signo > 0 ? "+" : "−"}
               {fmtNum(m.cantidad)} {m.articulo.unidad}
             </span>,

@@ -7,9 +7,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect("/login");
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <NavBar nombre={session.nombre} rol={session.rol} />
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main id="contenido" className="mx-auto max-w-6xl px-4 py-6 sm:py-10">{children}</main>
     </div>
   );
 }

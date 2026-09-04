@@ -5,18 +5,27 @@ import { hashPassword } from "@/lib/password";
 import { usuarioCreateSchema } from "@/lib/validation";
 import { ok, handleError } from "@/lib/api";
 
-// GET /api/usuarios?rol=&centroId=  — COORDINADOR
+// GET /api/usuarios?rol=&centroId=&estado=  — COORDINADOR todo;
+// ENCARGADO solo los voluntarios de su centro (para aprobarlos).
 export async function GET(req: NextRequest) {
   try {
-    await requireRole("COORDINADOR");
+    const session = await requireRole("COORDINADOR", "ENCARGADO");
     const sp = new URL(req.url).searchParams;
     const rol = sp.get("rol") ?? undefined;
     const centroId = sp.get("centroId") ?? undefined;
+    const estado = sp.get("estado") ?? undefined;
+    const alcance =
+      session.rol === "ENCARGADO" ? { rol: "VOLUNTARIO" as const, centroId: session.centroId ?? "" } : {};
     const usuarios = await prisma.usuario.findMany({
-      where: { ...(rol ? { rol: rol as never } : {}), ...(centroId ? { centroId } : {}) },
+      where: {
+        ...(rol ? { rol: rol as never } : {}),
+        ...(centroId ? { centroId } : {}),
+        ...(estado ? { estado: estado as never } : {}),
+        ...alcance,
+      },
       orderBy: { nombre: "asc" },
       select: {
-        id: true, nombre: true, email: true, rol: true, activo: true,
+        id: true, nombre: true, email: true, rol: true, activo: true, estado: true, createdAt: true,
         centro: { select: { id: true, nombre: true } },
         institucion: { select: { id: true, nombre: true } },
       },

@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 const COOKIE_NAME = "acopio_session";
 
 // Rutas públicas (no requieren sesión).
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/login", "/registro", "/api/auth/login", "/api/auth/registro", "/api/centros/publicos"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));

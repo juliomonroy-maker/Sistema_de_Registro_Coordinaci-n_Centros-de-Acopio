@@ -55,6 +55,24 @@ enum Motivo {
   OTRO
 }
 
+// Estado de aprobación de un movimiento. Solo APROBADO cuenta para el stock.
+// Hoy aplica a MERMA solicitada por un encargado (la aprueba el coordinador);
+// el resto de movimientos nacen APROBADO.
+enum EstadoMovimiento {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+// Estado de aprobación de una cuenta. Voluntarios que se registran solos
+// nacen PENDIENTE y no pueden iniciar sesión hasta que el encargado de su
+// centro o el coordinador los apruebe.
+enum EstadoUsuario {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
 // ───────────────────────────────  Usuarios  ───────────────────────────────────
 
 model Usuario {
@@ -64,6 +82,11 @@ model Usuario {
   passwordHash String
   rol          Rol          @default(VOLUNTARIO)
   activo       Boolean      @default(true)
+  // Aprobación de cuenta (registro público de voluntarios)
+  estado        EstadoUsuario @default(APROBADO)
+  aprobadoPorId String?
+  aprobadoPor   Usuario?      @relation("UsuarioAprobador", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  aprobadoAt    DateTime?
   // Encargado/voluntario pertenecen a un centro
   centroId     String?
   centro       Centro?      @relation("CentroMiembros", fields: [centroId], references: [id], onDelete: SetNull)
@@ -73,12 +96,15 @@ model Usuario {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  movimientos       Movimiento[] @relation("MovimientoActor")
-  centrosACargo     Centro[]     @relation("CentroEncargado")
-  campanasLideradas Campana[]    @relation("CampanaLider")
+  movimientos         Movimiento[] @relation("MovimientoActor")
+  movimientosResueltos Movimiento[] @relation("MovimientoAprobador")
+  usuariosAprobados   Usuario[]    @relation("UsuarioAprobador")
+  centrosACargo       Centro[]     @relation("CentroEncargado")
+  campanasLideradas   Campana[]    @relation("CampanaLider")
 
   @@index([centroId])
   @@index([institucionId])
+  @@index([estado])
 }
 
 // ───────────────────────────────  Campañas  ───────────────────────────────────
@@ -208,6 +234,14 @@ model Movimiento {
   actorId String?
   actor   Usuario? @relation("MovimientoActor", fields: [actorId], references: [id], onDelete: SetNull)
 
+  // Aprobación (MERMA solicitada por encargado → coordinador aprueba/rechaza).
+  // Solo los movimientos APROBADO suman al stock.
+  estado        EstadoMovimiento @default(APROBADO)
+  aprobadoPorId String?
+  aprobadoPor   Usuario?         @relation("MovimientoAprobador", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  resueltoAt    DateTime?
+  motivoRechazo String?
+
   // RECEPCION: datos del donante (opcional / anónimo)
   donanteNombre  String?
   donanteAnonimo Boolean @default(false)
@@ -231,4 +265,5 @@ model Movimiento {
   @@index([tipo])
   @@index([grupoTransferencia])
   @@index([institucionId])
+  @@index([estado])
 }

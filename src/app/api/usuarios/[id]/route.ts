@@ -8,7 +8,7 @@ import { ok, fail, handleError } from "@/lib/api";
 type Params = { params: Promise<{ id: string }> };
 
 const SELECT = {
-  id: true, nombre: true, email: true, rol: true, activo: true,
+  id: true, nombre: true, email: true, rol: true, activo: true, estado: true,
   centro: { select: { id: true, nombre: true } },
   institucion: { select: { id: true, nombre: true } },
 } as const;

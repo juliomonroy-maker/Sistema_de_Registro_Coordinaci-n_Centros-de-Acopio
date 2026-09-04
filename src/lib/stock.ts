@@ -29,8 +29,16 @@ export type StockLinea = {
 
 export type StockFiltro = { centroId?: string; campanaId?: string; campanaIds?: string[] };
 
+/**
+ * Solo los movimientos APROBADO afectan el stock. Una merma PENDIENTE (solicitada
+ * por un encargado, en espera del coordinador) o RECHAZADA no descuenta nada.
+ * Toda agregación de stock/metas/totales debe incluir este filtro.
+ */
+export const SOLO_APROBADOS = { estado: "APROBADO" } as const satisfies Prisma.MovimientoWhereInput;
+
 function whereFiltro(f: StockFiltro): Prisma.MovimientoWhereInput {
   return {
+    ...SOLO_APROBADOS,
     ...(f.centroId ? { centroId: f.centroId } : {}),
     ...(f.campanaId ? { campanaId: f.campanaId } : {}),
     ...(f.campanaIds ? { campanaId: { in: f.campanaIds } } : {}),
@@ -89,7 +97,7 @@ export async function stockDisponible(
   articuloId: string,
   client: Db = prisma,
 ): Promise<number> {
-  const sumas = await sumarPorArticulo({ centroId, campanaId, articuloId }, client);
+  const sumas = await sumarPorArticulo({ ...SOLO_APROBADOS, centroId, campanaId, articuloId }, client);
   return sumas.get(articuloId) ?? 0;
 }
 
@@ -120,7 +128,7 @@ export async function progresoMetas(campanaId: string, client: Db = prisma): Pro
 
   const recibidos = await client.movimiento.groupBy({
     by: ["articuloId"],
-    where: { campanaId, tipo: "RECEPCION", articuloId: { in: metas.map((m) => m.articuloId) } },
+    where: { ...SOLO_APROBADOS, campanaId, tipo: "RECEPCION", articuloId: { in: metas.map((m) => m.articuloId) } },
     _sum: { cantidad: true },
   });
   const porArticulo = new Map(recibidos.map((r) => [r.articuloId, r._sum.cantidad ?? 0]));
@@ -167,6 +175,7 @@ export async function totalesPorCampana(client: Db = prisma): Promise<TotalCampa
     }),
     client.movimiento.groupBy({
       by: ["campanaId", "tipo", "signoPositivo"],
+      where: SOLO_APROBADOS,
       _sum: { cantidad: true },
       _count: true,
     }),
@@ -177,7 +186,7 @@ export async function totalesPorCampana(client: Db = prisma): Promise<TotalCampa
   const recepcionesMeta = metas.length
     ? await client.movimiento.groupBy({
         by: ["campanaId", "articuloId"],
-        where: { tipo: "RECEPCION", articuloId: { in: [...new Set(metas.map((m) => m.articuloId))] } },
+        where: { ...SOLO_APROBADOS, tipo: "RECEPCION", articuloId: { in: [...new Set(metas.map((m) => m.articuloId))] } },
         _sum: { cantidad: true },
       })
     : [];

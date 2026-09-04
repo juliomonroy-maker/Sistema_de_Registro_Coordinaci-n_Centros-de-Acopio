@@ -73,7 +73,7 @@ async function main() {
 
   const centro2 = await prisma.centro.upsert({
     where: { id: "seed-centro-2" },
-    update: {},
+    update: { latitud: 23.7614, longitud: -99.1552 },
     create: {
       id: "seed-centro-2",
       nombre: "Centro de Acopio Norte",
@@ -81,6 +81,8 @@ async function main() {
       direccion: "Blvd. Tamaulipas 4500",
       ciudad: "Ciudad Victoria",
       estado: "Tamaulipas",
+      latitud: 23.7614,
+      longitud: -99.1552,
       telefono: "834-200-0000",
       activo: true,
     },
@@ -103,11 +105,46 @@ async function main() {
     create: { nombre: "Voluntario Centro Histórico", email: "voluntario@acopio.mx", passwordHash, rol: "VOLUNTARIO", centroId: centro1.id },
   });
 
+  // Voluntario que se registró solo y espera aprobación (no puede iniciar sesión).
+  await prisma.usuario.upsert({
+    where: { email: "voluntario.pendiente@acopio.mx" },
+    update: {},
+    create: { nombre: "Voluntario Pendiente", email: "voluntario.pendiente@acopio.mx", passwordHash, rol: "VOLUNTARIO", centroId: centro1.id, estado: "PENDIENTE" },
+  });
+
   // Asignar encargados a sus centros
   await prisma.centro.update({ where: { id: centro1.id }, data: { encargadoId: encargado1.id } });
 
+  // ── Centros de acopio en Tampico, Tamaulipas ──
+  // Ubicaciones reales usadas como puntos de acopio (gobierno municipal, DIF, medios,
+  // universidades, parques). Coordenadas geocodificadas con OpenStreetMap/Nominatim;
+  // las marcadas "aprox." son a nivel de calle o colonia.
+  const tampico = [
+    { id: "seed-tampico-1", nombre: "Plaza de Armas", institucion: "Gobierno Municipal de Tampico", direccion: "Plaza de Armas, Zona Centro, C.P. 89000", latitud: 22.2157, longitud: -97.8578, telefono: "833-305-2000" },
+    { id: "seed-tampico-2", nombre: "DIF Tampico", institucion: "Sistema DIF Tampico", direccion: "Calle Emilio Carranza, Zona Centro", latitud: 22.2164, longitud: -97.8578, telefono: null },
+    { id: "seed-tampico-3", nombre: "Explanada ASIPONA", institucion: "ASIPONA Tampico (Puerto)", direccion: "Explanada de la ASIPONA, Puerto de Tampico", latitud: 22.2112, longitud: -97.8582, telefono: null },
+    { id: "seed-tampico-4", nombre: "Plaza Hijas de Tampico", institucion: "Gobierno Municipal de Tampico", direccion: "Plaza Hijas de Tampico, Zona Centro", latitud: 22.2123, longitud: -97.8575, telefono: null },
+    { id: "seed-tampico-5", nombre: "Milenio Tamaulipas", institucion: "Grupo Milenio", direccion: "Av. Hidalgo 3000 esq. Ciprés, Col. Águila (aprox.)", latitud: 22.2418, longitud: -97.8726, telefono: null },
+    { id: "seed-tampico-6", nombre: "Casa Maka", institucion: "Casa Maka A.C.", direccion: "Calle Álvaro Obregón 917 Pte., Col. Melchor Ocampo (aprox.)", latitud: 22.2179, longitud: -97.8572, telefono: null },
+    { id: "seed-tampico-7", nombre: "Parque de la Colonia Petrolera", institucion: "Gobierno Municipal de Tampico", direccion: "Parque Petrolera, Col. Petrolera", latitud: 22.2567, longitud: -97.8688, telefono: null },
+    { id: "seed-tampico-8", nombre: "Parque Sierra Morena", institucion: "Gobierno Municipal de Tampico", direccion: "Parque Sierra Morena, Col. Sierra Morena, C.P. 89210", latitud: 22.2519, longitud: -97.8773, telefono: null },
+    { id: "seed-tampico-9", nombre: "Auditorio Municipal", institucion: "Gobierno Municipal de Tampico", direccion: "Calle Lauro Aguirre, Col. Guadalupe, C.P. 89160", latitud: 22.2220, longitud: -97.8636, telefono: null },
+    { id: "seed-tampico-10", nombre: "Parque Méndez", institucion: "Gobierno Municipal de Tampico", direccion: "Calle Dr. Antonio Matienzo, Col. Tamaulipas, C.P. 89080", latitud: 22.2194, longitud: -97.8593, telefono: null },
+    { id: "seed-tampico-11", nombre: "Espacio Cultural Metropolitano", institucion: "Gobierno del Estado de Tamaulipas", direccion: "Espacio Cultural Metropolitano (METRO), C.P. 89160", latitud: 22.2350, longitud: -97.8526, telefono: null },
+    { id: "seed-tampico-12", nombre: "Cruz Roja Tampico", institucion: "Cruz Roja Mexicana", direccion: "Calle Dr. Alfredo Gochicoa, C.P. 89160", latitud: 22.2216, longitud: -97.8622, telefono: null },
+    { id: "seed-tampico-13", nombre: "UAT Centro Universitario Tampico-Madero", institucion: "Universidad Autónoma de Tamaulipas", direccion: "Retorno Lic. Adolfo López Mateos, Centro Universitario Sur", latitud: 22.2757, longitud: -97.8620, telefono: null },
+    { id: "seed-tampico-14", nombre: "IEST Anáhuac", institucion: "Universidad IEST Anáhuac", direccion: "Blvd. de los Ríos km 3.5, Col. Puertas Coloradas (aprox.)", latitud: 22.2830, longitud: -97.8580, telefono: null },
+  ];
+  for (const c of tampico) {
+    await prisma.centro.upsert({
+      where: { id: c.id },
+      update: { latitud: c.latitud, longitud: c.longitud, direccion: c.direccion, institucion: c.institucion },
+      create: { ...c, ciudad: "Tampico", estado: "Tamaulipas", activo: true },
+    });
+  }
+
   // Vincular centros a la campaña
-  for (const centroId of [centro1.id, centro2.id]) {
+  for (const centroId of [centro1.id, centro2.id, ...tampico.map((c) => c.id)]) {
     await prisma.centroCampana.upsert({
       where: { centroId_campanaId: { centroId, campanaId: campana.id } },
       update: {},
@@ -169,6 +206,14 @@ async function main() {
     });
   }
 
+  // Merma solicitada por el encargado, pendiente de aprobación del coordinador (no descuenta stock).
+  const hayPendiente = await prisma.movimiento.count({ where: { tipo: "MERMA", estado: "PENDIENTE" } });
+  if (hayPendiente === 0) {
+    await prisma.movimiento.create({
+      data: { tipo: "MERMA", estado: "PENDIENTE", centroId: centro1.id, campanaId: campana.id, articuloId: "seed-art-2", cantidad: 20, motivo: "CADUCIDAD", actorId: encargado1.id, nota: "Botellas vencidas" },
+    });
+  }
+
   console.log("Seed completo.");
   console.log("Usuarios (pass: password123):");
   console.log("  coordinador@acopio.mx  (COORDINADOR)");
@@ -176,6 +221,7 @@ async function main() {
   console.log("  voluntario@acopio.mx   (VOLUNTARIO centro 1)");
   console.log("  institucion@acopio.mx  (INSTITUCION receptora)");
   console.log("  lider@acopio.mx        (LIDER_CAMPANA)");
+  console.log("  voluntario.pendiente@acopio.mx (VOLUNTARIO, PENDIENTE: no puede entrar hasta aprobación)");
 }
 
 main()

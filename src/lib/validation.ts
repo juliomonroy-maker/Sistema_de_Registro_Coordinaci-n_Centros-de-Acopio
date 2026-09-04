@@ -5,6 +5,7 @@ const UNIDADES = ["PIEZA", "KG", "L", "BOLSA", "CAJA"] as const;
 const MOTIVOS = ["CADUCIDAD", "DANO", "PERDIDA", "CORRECCION", "OTRO"] as const;
 const ROLES = ["COORDINADOR", "ENCARGADO", "VOLUNTARIO", "INSTITUCION", "LIDER_CAMPANA"] as const;
 const TIPOS = ["RECEPCION", "ENTREGA", "MERMA", "TRANSFERENCIA_SALIDA", "TRANSFERENCIA_ENTRADA", "AJUSTE"] as const;
+const ESTADOS = ["PENDIENTE", "APROBADO", "RECHAZADO"] as const;
 
 // Cantidad física: positiva, finita y con un tope razonable para evitar valores absurdos.
 const cantidad = z.number().positive().finite().max(1_000_000);
@@ -48,6 +49,21 @@ export const usuarioUpdateSchema = z.object({
 });
 export { asignacionCoherente };
 
+// Registro público de voluntario: queda PENDIENTE hasta que lo apruebe el
+// encargado de su centro o el coordinador. Solo puede pedir rol VOLUNTARIO.
+export const registroVoluntarioSchema = z.object({
+  nombre: z.string().min(2).max(120),
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+  centroId: id,
+});
+
+// Aprobar/rechazar (cuenta de voluntario o merma pendiente).
+export const resolucionSchema = z.object({
+  accion: z.enum(["APROBAR", "RECHAZAR"]),
+  motivoRechazo: z.string().max(300).optional().nullable(),
+});
+
 // ── Campañas ──
 export const campanaCreateSchema = z.object({
   nombre: z.string().min(2).max(120),
@@ -56,10 +72,11 @@ export const campanaCreateSchema = z.object({
   fechaFin: z.coerce.date().optional().nullable(),
   meta: z.string().max(300).optional().nullable(),
   liderId: id.optional().nullable(),
+  centroIds: z.array(id).max(500).optional(), // centros participantes iniciales
 });
 export const campanaUpdateSchema = campanaCreateSchema.partial().extend({
   activa: z.boolean().optional(),
-  centroIds: z.array(id).max(500).optional(), // centros participantes (reemplaza el conjunto)
+  // centroIds: reemplaza el conjunto de centros participantes
 });
 
 // Metas cuantitativas por artículo. PUT reemplaza el conjunto completo.
@@ -154,6 +171,7 @@ export const movimientosFiltroSchema = z.object({
   centroId: id.optional(),
   campanaId: id.optional(),
   tipo: z.enum(TIPOS).optional(),
+  estado: z.enum(ESTADOS).optional(),
   desde: z.coerce.date().optional(),
   hasta: z.coerce
     .date()
@@ -174,3 +192,4 @@ export function queryToObject(sp: URLSearchParams): Record<string, string> {
 export const motivoSchema = z.enum(MOTIVOS);
 export const rolSchema = z.enum(ROLES);
 export const tipoMovimientoSchema = z.enum(TIPOS);
+export const estadoSchema = z.enum(ESTADOS);

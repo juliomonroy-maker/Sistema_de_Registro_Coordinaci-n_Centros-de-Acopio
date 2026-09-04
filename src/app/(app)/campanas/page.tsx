@@ -20,11 +20,11 @@ export default async function CampanasPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Campañas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Campañas</h1>
         {esCoordinador && (
           <Link
             href="/campanas/nueva"
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-bg hover:bg-ink-2"
           >
             + Nueva campaña
           </Link>
@@ -32,17 +32,17 @@ export default async function CampanasPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {campanas.length === 0 && <p className="text-gray-400">Sin campañas.</p>}
+        {campanas.length === 0 && <p className="text-ink-3">Sin campañas.</p>}
         {campanas.map((c) => (
-          <Link key={c.id} href={`/campanas/${c.id}`} className="rounded-xl border bg-white p-5 shadow-sm transition hover:shadow">
+          <Link key={c.id} href={`/campanas/${c.id}`} className="rounded-xl border border-line bg-surface p-5 shadow-sm transition hover:shadow">
             <div className="flex items-start justify-between">
               <h2 className="font-semibold">{c.nombre}</h2>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.activa ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.activa ? "bg-ink/10 text-ink" : "bg-surface-2 text-ink-3"}`}>
                 {c.activa ? "Activa" : "Cerrada"}
               </span>
             </div>
-            <p className="mt-1 text-sm text-gray-500">Inicio: {fmtFecha(c.fechaInicio)}</p>
-            <div className="mt-3 flex gap-4 text-xs text-gray-500">
+            <p className="mt-1 text-sm text-ink-3">Inicio: {fmtFecha(c.fechaInicio)}</p>
+            <div className="mt-3 flex gap-4 text-xs text-ink-3">
               <span>{c._count.centros} centros</span>
               <span>{c._count.movimientos} movimientos</span>
               <span>Líder: {c.lider?.nombre ?? "—"}</span>

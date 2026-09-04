@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireRole, puedeVerCampana, puedeGestionarCampana } from "@/lib/auth";
 import { campanaUpdateSchema } from "@/lib/validation";
 import { calcularStock, progresoMetas } from "@/lib/stock";
+import { validarLider } from "@/lib/campanas";
 import { ok, fail, handleError } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -39,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { centroIds, liderId, activa, ...resto } = campanaUpdateSchema.parse(await req.json());
     const data = session.rol === "COORDINADOR" ? { ...resto, liderId, activa } : resto;
+    if (session.rol === "COORDINADOR" && liderId !== undefined) await validarLider(liderId);
 
     const campana = await prisma.$transaction(async (tx) => {
       if (centroIds) {
@@ -48,7 +50,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           skipDuplicates: true,
         });
       }
-      return tx.campana.update({ where: { id }, data });
+      return tx.campana.update({
+        where: { id },
+        data,
+        include: { lider: { select: { id: true, nombre: true } }, centros: { select: { centroId: true } } },
+      });
     });
     return ok(campana);
   } catch (err) {

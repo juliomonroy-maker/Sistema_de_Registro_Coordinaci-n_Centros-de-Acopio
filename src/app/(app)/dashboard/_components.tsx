@@ -1,7 +1,22 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { calcularStock, progresoMetas, totalesPorCampana, signoDeMovimiento, type ProgresoMeta } from "@/lib/stock";
-import { StatCard, Tabla, TipoBadge, BarraProgreso, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
+import { serieDiaria, stockPorCategoria, recibidoPorCentro, topArticulos } from "@/lib/graficas";
+import { GraficaSerieDiaria, GraficaBarras, GraficaCampanas, GraficaMetas } from "@/components/Graficas";
+import {
+  cls,
+  Cifras,
+  Encabezado,
+  Seccion,
+  Tabla,
+  TipoBadge,
+  EstadoBadge,
+  EstadoActivo,
+  BarraProgreso,
+  BotonCsv,
+  fmtFecha,
+  fmtNum,
+} from "@/components/ui";
 
 // Fila de movimiento reutilizable en las tablas.
 async function tablaMovimientos(where: object, opts: { conCentro?: boolean } = {}) {
@@ -21,15 +36,18 @@ async function tablaMovimientos(where: object, opts: { conCentro?: boolean } = {
   const rows = movs.map((m) => {
     const signo = signoDeMovimiento(m.tipo, m.signoPositivo);
     return [
-      fmtFecha(m.fecha),
-      <TipoBadge key="t" tipo={m.tipo} />,
+      <span key="f" className="whitespace-nowrap text-ink-2">{fmtFecha(m.fecha)}</span>,
+      <span key="t" className="inline-flex flex-wrap gap-1">
+        <TipoBadge tipo={m.tipo} />
+        <EstadoBadge estado={m.estado} />
+      </span>,
       m.articulo.nombre,
-      <span key="c" className={signo > 0 ? "text-green-700" : "text-red-700"}>
+      <span key="c" className={`whitespace-nowrap font-medium ${signo > 0 ? "text-ink" : "text-ink-2"}`}>
         {signo > 0 ? "+" : "−"}
-        {fmtNum(m.cantidad)} {m.articulo.unidad}
+        {fmtNum(m.cantidad)} <span className="text-ink-3">{m.articulo.unidad}</span>
       </span>,
       ...(opts.conCentro ? [m.centro.nombre] : []),
-      m.actor?.nombre ?? "—",
+      <span key="a" className="text-ink-2">{m.actor?.nombre ?? "—"}</span>,
     ];
   });
   return <Tabla headers={headers} rows={rows} empty="Sin movimientos." />;
@@ -39,7 +57,11 @@ function TablaStock({ stock }: { stock: Awaited<ReturnType<typeof calcularStock>
   return (
     <Tabla
       headers={["Artículo", "Categoría", "Existencia"]}
-      rows={stock.map((s) => [s.nombre, s.categoria, `${fmtNum(s.cantidad)} ${s.unidad}`])}
+      rows={stock.map((s) => [
+        <span key="n" className="font-medium">{s.nombre}</span>,
+        <span key="c" className="text-ink-2">{s.categoria}</span>,
+        <span key="e" className="whitespace-nowrap">{fmtNum(s.cantidad)} <span className="text-ink-3">{s.unidad}</span></span>,
+      ])}
       empty="Sin existencias."
     />
   );
@@ -47,23 +69,23 @@ function TablaStock({ stock }: { stock: Awaited<ReturnType<typeof calcularStock>
 
 /** Resumen compacto de metas (solo lectura) para dashboards. */
 function MetasResumen({ metas, href }: { metas: ProgresoMeta[]; href?: string }) {
-  if (metas.length === 0) return <p className="text-sm text-gray-400">Sin metas definidas.</p>;
+  if (metas.length === 0) return <p className={cls.muted}>Sin metas definidas.</p>;
   return (
-    <ul className="grid gap-3 rounded-xl border bg-white p-5 md:grid-cols-2">
+    <ul className={`${cls.panel} divide-y divide-line`}>
       {metas.map((m) => (
-        <li key={m.id}>
-          <div className="mb-1 flex justify-between text-sm">
+        <li key={m.id} className="px-4 py-3 sm:px-5">
+          <div className="mb-1.5 flex justify-between gap-3 text-sm">
             <span className="font-medium">{m.nombre}</span>
-            <span className="text-gray-500">
-              {fmtNum(m.recibido)} / {fmtNum(m.objetivo)} {m.unidad} · <b>{m.porcentaje}%</b>
+            <span className="whitespace-nowrap text-ink-3">
+              {fmtNum(m.recibido)} / {fmtNum(m.objetivo)} {m.unidad} · <b className="text-ink">{m.porcentaje}%</b>
             </span>
           </div>
           <BarraProgreso porcentaje={m.porcentaje} />
         </li>
       ))}
       {href && (
-        <li className="md:col-span-2">
-          <Link href={href} className="text-sm text-brand-700 hover:underline">Gestionar metas →</Link>
+        <li className="px-4 py-3 sm:px-5">
+          <Link href={href} className={`${cls.link} text-sm`}>Gestionar metas</Link>
         </li>
       )}
     </ul>
@@ -72,78 +94,100 @@ function MetasResumen({ metas, href }: { metas: ProgresoMeta[]; href?: string })
 
 // ─────────────────────────  COORDINADOR GENERAL  ──────────────────────────────
 export async function DashboardCoordinador() {
-  const [centros, centrosActivos, campanas, movimientos, mermas, entregasPend] = await Promise.all([
+  const [centros, centrosActivos, campanas, movimientos, mermas, entregasPend, mermasPend, voluntariosPend] = await Promise.all([
     prisma.centro.count(),
     prisma.centro.count({ where: { activo: true } }),
     prisma.campana.count({ where: { activa: true } }),
-    prisma.movimiento.count(),
-    prisma.movimiento.count({ where: { tipo: "MERMA" } }),
+    prisma.movimiento.count({ where: { estado: "APROBADO" } }),
+    prisma.movimiento.count({ where: { tipo: "MERMA", estado: "APROBADO" } }),
     // Solo cuentan las entregas canalizadas a una institución: las de beneficiario directo no se confirman.
     prisma.movimiento.count({ where: { tipo: "ENTREGA", confirmadaRecibida: false, institucionId: { not: null } } }),
+    prisma.movimiento.count({ where: { tipo: "MERMA", estado: "PENDIENTE" } }),
+    prisma.usuario.count({ where: { estado: "PENDIENTE" } }),
   ]);
-  const totales = await totalesPorCampana();
+  const [totales, serie, porCategoria] = await Promise.all([totalesPorCampana(), serieDiaria({}), stockPorCategoria({})]);
   const metasPorCampana = await Promise.all(
     totales.filter((c) => c.activa).map(async (c) => ({ ...c, metas: await progresoMetas(c.id) })),
   );
+  const pendientes = mermasPend + voluntariosPend;
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Panel global</h1>
-        <div className="flex gap-2">
-          <BotonCsv href="/api/movimientos/export" label="Movimientos CSV" />
-          <BotonCsv href="/api/stock/export" label="Stock CSV" />
-        </div>
-      </div>
-      <p className="mb-6 text-sm text-gray-500">Visibilidad de todos los centros y campañas.</p>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
-        <StatCard label="Centros" value={centros} href="/centros" />
-        <StatCard label="Activos" value={centrosActivos} />
-        <StatCard label="Campañas activas" value={campanas} href="/campanas" />
-        <StatCard label="Movimientos" value={movimientos} href="/movimientos" />
-        <StatCard label="Mermas" value={mermas} />
-        <StatCard label="Entregas sin confirmar" value={entregasPend} />
-      </div>
-
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Totales por campaña</h2>
-      <Tabla
-        headers={["Campaña", "Estado", "Centros", "Recibido", "Entregado", "Merma", "Stock actual", "Movs.", "Avance metas"]}
-        rows={totales.map((c) => [
-          <Link key="n" href={`/campanas/${c.id}`} className="font-medium text-brand-700 hover:underline">
-            {c.nombre}
-          </Link>,
-          <span key="e" className={c.activa ? "text-green-700" : "text-gray-400"}>
-            {c.activa ? "Activa" : "Cerrada"}
-          </span>,
-          c.centros,
-          fmtNum(c.recibido),
-          fmtNum(c.entregado),
-          fmtNum(c.merma),
-          <b key="s">{fmtNum(c.stock)}</b>,
-          c.movimientos,
-          c.avanceMetas == null ? "—" : (
-            <div key="a" className="flex items-center gap-2">
-              <span className="w-10 tabular-nums">{c.avanceMetas}%</span>
-              <div className="w-24"><BarraProgreso porcentaje={c.avanceMetas} /></div>
-            </div>
-          ),
-        ])}
-        empty="Sin campañas."
+      <Encabezado
+        titulo="Panel global"
+        sub="Todos los centros y campañas. Cada cifra sale del ledger de movimientos."
+        acciones={
+          <>
+            <BotonCsv href="/api/movimientos/export" label="Movimientos CSV" />
+            <BotonCsv href="/api/stock/export" label="Stock CSV" />
+          </>
+        }
       />
 
+      {pendientes > 0 && (
+        <Link href="/aprobaciones" className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-warn/30 bg-warn-bg px-4 py-3 text-sm text-warn hover:bg-warn/20">
+          <span>
+            <b>{pendientes}</b> por aprobar: {mermasPend} merma{mermasPend === 1 ? "" : "s"} y {voluntariosPend} voluntario{voluntariosPend === 1 ? "" : "s"}.
+          </span>
+          <span className="shrink-0 font-medium">Revisar</span>
+        </Link>
+      )}
+
+      <Cifras
+        items={[
+          { label: "Centros", value: centros, href: "/centros" },
+          { label: "Centros activos", value: centrosActivos, href: "/mapa" },
+          { label: "Campañas activas", value: campanas, href: "/campanas" },
+          { label: "Movimientos", value: fmtNum(movimientos), href: "/movimientos" },
+          { label: "Mermas aprobadas", value: mermas },
+          { label: "Entregas sin confirmar", value: entregasPend },
+        ]}
+      />
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2"><GraficaSerieDiaria datos={serie} /></div>
+        <GraficaBarras datos={porCategoria} titulo="Stock por categoría" />
+      </div>
+      <div className="mt-4">
+        <GraficaCampanas datos={totales.map((t) => ({ nombre: t.nombre, recibido: t.recibido, entregado: t.entregado, merma: t.merma }))} />
+      </div>
+
+      <Seccion titulo="Totales por campaña">
+        <Tabla
+          headers={["Campaña", "Estado", "Centros", "Recibido", "Entregado", "Merma", "Stock actual", "Movs.", "Avance metas"]}
+          rows={totales.map((c) => [
+            <Link key="n" href={`/campanas/${c.id}`} className={`${cls.link} font-medium`}>{c.nombre}</Link>,
+            <EstadoActivo key="e" activo={c.activa} labels={["Activa", "Cerrada"]} />,
+            c.centros,
+            fmtNum(c.recibido),
+            fmtNum(c.entregado),
+            fmtNum(c.merma),
+            <b key="s">{fmtNum(c.stock)}</b>,
+            c.movimientos,
+            c.avanceMetas == null ? <span className="text-ink-3">—</span> : (
+              <div key="a" className="flex items-center gap-2">
+                <span className="w-10 tabular-nums">{c.avanceMetas}%</span>
+                <div className="w-24"><BarraProgreso porcentaje={c.avanceMetas} /></div>
+              </div>
+            ),
+          ])}
+          empty="Sin campañas."
+        />
+      </Seccion>
+
       {metasPorCampana.map((c) => (
-        <section key={c.id}>
-          <h2 className="mb-3 mt-10 text-lg font-semibold">Metas · {c.nombre}</h2>
+        <Seccion key={c.id} titulo={`Metas · ${c.nombre}`}>
           <MetasResumen metas={c.metas} href={`/campanas/${c.id}`} />
-        </section>
+        </Seccion>
       ))}
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Stock global (todos los centros)</h2>
-      <TablaStock stock={await calcularStock({})} />
+      <Seccion titulo="Stock global">
+        <TablaStock stock={await calcularStock({})} />
+      </Seccion>
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Movimientos recientes</h2>
-      {await tablaMovimientos({}, { conCentro: true })}
+      <Seccion titulo="Movimientos recientes" aside={<Link href="/movimientos" className={`${cls.link} text-sm`}>Ver todos</Link>}>
+        {await tablaMovimientos({}, { conCentro: true })}
+      </Seccion>
     </div>
   );
 }
@@ -155,40 +199,64 @@ export async function DashboardEncargado({ centroId }: { centroId: string | null
   if (!centro) return <SinAsignar tipo="centro" />;
 
   const stock = await calcularStock({ centroId });
-  const [recepciones, entregas, mermas] = await Promise.all([
+  const [recepciones, entregas, mermas, mermasPend, voluntariosPend, serie, top] = await Promise.all([
     prisma.movimiento.count({ where: { centroId, tipo: "RECEPCION" } }),
     prisma.movimiento.count({ where: { centroId, tipo: "ENTREGA" } }),
-    prisma.movimiento.count({ where: { centroId, tipo: "MERMA" } }),
+    prisma.movimiento.count({ where: { centroId, tipo: "MERMA", estado: "APROBADO" } }),
+    prisma.movimiento.count({ where: { centroId, tipo: "MERMA", estado: "PENDIENTE" } }),
+    prisma.usuario.count({ where: { centroId, rol: "VOLUNTARIO", estado: "PENDIENTE" } }),
+    serieDiaria({ centroId }),
+    topArticulos({ centroId }),
   ]);
   const totalStock = stock.reduce((a, s) => a + s.cantidad, 0);
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">{centro.nombre}</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        {centro.direccion}, {centro.ciudad} · Dashboard del centro
-      </p>
+      <Encabezado
+        titulo={centro.nombre}
+        sub={`${centro.direccion}, ${centro.ciudad} · Panel del centro`}
+        acciones={
+          <>
+            <Link href="/movimientos/nuevo" className={cls.btnPrimary}>Registrar movimiento</Link>
+            <BotonCsv href="/api/movimientos/export" label="Movimientos CSV" />
+            <BotonCsv href="/api/stock/export" label="Stock CSV" />
+          </>
+        }
+      />
 
-      <div className="mb-4 flex gap-3">
-        <Link href="/movimientos/nuevo" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-          + Registrar movimiento
+      {(mermasPend > 0 || voluntariosPend > 0) && (
+        <Link href="/aprobaciones" className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-warn/30 bg-warn-bg px-4 py-3 text-sm text-warn hover:bg-warn/20">
+          <span>
+            {voluntariosPend > 0 && <>{voluntariosPend} voluntario{voluntariosPend === 1 ? "" : "s"} esperan tu aprobación. </>}
+            {mermasPend > 0 && <>{mermasPend} merma{mermasPend === 1 ? "" : "s"} tuya{mermasPend === 1 ? "" : "s"} esperan al coordinador.</>}
+          </span>
+          <span className="shrink-0 font-medium">Ver</span>
         </Link>
-        <BotonCsv href="/api/movimientos/export" label="Movimientos CSV" />
-        <BotonCsv href="/api/stock/export" label="Stock CSV" />
+      )}
+
+      <Cifras
+        items={[
+          { label: "Artículos en stock", value: stock.length },
+          { label: "Unidades totales", value: fmtNum(totalStock) },
+          { label: "Recepciones", value: recepciones },
+          { label: "Entregas", value: entregas },
+          { label: "Mermas aprobadas", value: mermas },
+          { label: "Mermas en espera", value: mermasPend, tono: mermasPend ? "warn" : undefined, href: "/aprobaciones" },
+        ]}
+      />
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2"><GraficaSerieDiaria datos={serie} titulo="Actividad del centro (últimos 30 días)" /></div>
+        <GraficaBarras datos={top} titulo="Artículos con más existencia" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Artículos en stock" value={stock.length} />
-        <StatCard label="Unidades totales" value={fmtNum(totalStock)} />
-        <StatCard label="Recepciones" value={recepciones} />
-        <StatCard label="Entregas / Mermas" value={`${entregas} / ${mermas}`} />
-      </div>
+      <Seccion titulo="Inventario actual">
+        <TablaStock stock={stock} />
+      </Seccion>
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Inventario actual</h2>
-      <TablaStock stock={stock} />
-
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Movimientos del centro</h2>
-      {await tablaMovimientos({ centroId })}
+      <Seccion titulo="Movimientos del centro" aside={<Link href="/movimientos" className={`${cls.link} text-sm`}>Ver todos</Link>}>
+        {await tablaMovimientos({ centroId })}
+      </Seccion>
     </div>
   );
 }
@@ -198,28 +266,37 @@ export async function DashboardVoluntario({ centroId }: { centroId: string | nul
   if (!centroId) return <SinAsignar tipo="centro" />;
   const centro = await prisma.centro.findUnique({ where: { id: centroId } });
   if (!centro) return <SinAsignar tipo="centro" />;
+  const stock = await calcularStock({ centroId });
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">{centro.nombre}</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        Voluntario · puedes registrar recepciones y entregas.
-      </p>
+      <Encabezado titulo={centro.nombre} sub="Voluntario · registras recepciones y entregas de este centro." />
 
-      <div className="mb-6 flex gap-3">
-        <Link href="/movimientos/nuevo?tipo=RECEPCION" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-          + Registrar recepción
+      {/* Las dos acciones que importan, grandes y a la mano en el celular. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link href="/movimientos/nuevo?tipo=RECEPCION" className={`${cls.btnPrimary} min-h-14 text-base`}>
+          Registrar recepción
         </Link>
-        <Link href="/movimientos/nuevo?tipo=ENTREGA" className="rounded-md border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">
-          + Registrar entrega
+        <Link href="/movimientos/nuevo?tipo=ENTREGA" className={`${cls.btnSecondary} min-h-14 text-base`}>
+          Registrar entrega
         </Link>
       </div>
 
-      <h2 className="mb-3 text-lg font-semibold">Inventario del centro</h2>
-      <TablaStock stock={await calcularStock({ centroId })} />
+      <div className="mt-6">
+        <Cifras items={[{ label: "Artículos en stock", value: stock.length }, { label: "Unidades totales", value: fmtNum(stock.reduce((a, s) => a + s.cantidad, 0)) }]} />
+      </div>
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Últimos movimientos</h2>
-      {await tablaMovimientos({ centroId })}
+      <div className="mt-6">
+        <GraficaBarras datos={await stockPorCategoria({ centroId })} titulo="Stock del centro por categoría" />
+      </div>
+
+      <Seccion titulo="Inventario del centro">
+        <TablaStock stock={stock} />
+      </Seccion>
+
+      <Seccion titulo="Últimos movimientos">
+        {await tablaMovimientos({ centroId })}
+      </Seccion>
     </div>
   );
 }
@@ -236,15 +313,8 @@ export async function DashboardInstitucion({ institucionId }: { institucionId: s
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">{institucion?.nombre ?? "Institución"}</h1>
-      <p className="mb-6 text-sm text-gray-500">Entregas canalizadas a tu institución.</p>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard label="Por confirmar" value={pendientes} />
-        <StatCard label="Confirmadas" value={confirmadas} />
-      </div>
-      <div className="mt-2 text-sm text-gray-500">
-        Ve y confirma tus entregas en la sección de abajo.
-      </div>
+      <Encabezado titulo={institucion?.nombre ?? "Institución"} sub="Entregas canalizadas a tu institución. Confirma las que ya recibiste." />
+      <Cifras items={[{ label: "Por confirmar", value: pendientes, tono: pendientes ? "warn" : undefined }, { label: "Confirmadas", value: confirmadas }]} />
     </div>
   );
 }
@@ -257,58 +327,72 @@ export async function DashboardLider({ userId }: { userId: string }) {
   });
   if (!campana) return <SinAsignar tipo="campaña" />;
 
-  const [stock, metas, recepciones, entregas] = await Promise.all([
+  const [stock, metas, recepciones, entregas, serie, porCentro] = await Promise.all([
     calcularStock({ campanaId: campana.id }),
     progresoMetas(campana.id),
-    prisma.movimiento.count({ where: { campanaId: campana.id, tipo: "RECEPCION" } }),
-    prisma.movimiento.count({ where: { campanaId: campana.id, tipo: "ENTREGA" } }),
+    prisma.movimiento.count({ where: { campanaId: campana.id, tipo: "RECEPCION", estado: "APROBADO" } }),
+    prisma.movimiento.count({ where: { campanaId: campana.id, tipo: "ENTREGA", estado: "APROBADO" } }),
+    serieDiaria({ campanaId: campana.id }),
+    recibidoPorCentro(campana.id),
   ]);
   const totalStock = stock.reduce((a, s) => a + s.cantidad, 0);
   const avance = metas.length ? Math.round(metas.reduce((a, m) => a + m.porcentaje, 0) / metas.length) : null;
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{campana.nombre}</h1>
-        <div className="flex gap-2">
-          <BotonCsv href={`/api/movimientos/export?campanaId=${campana.id}`} label="Movimientos CSV" />
-          <BotonCsv href={`/api/stock/export?campanaId=${campana.id}`} label="Stock CSV" />
-        </div>
-      </div>
-      <p className="mb-6 text-sm text-gray-500">
-        Dashboard agregado de la campaña · {campana.centros.length} centros participantes
-        {campana.meta ? ` · Meta: ${campana.meta}` : ""}
-      </p>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <StatCard label="Centros" value={campana.centros.length} />
-        <StatCard label="Artículos en stock" value={stock.length} />
-        <StatCard label="Unidades totales" value={fmtNum(totalStock)} />
-        <StatCard label="Recepciones / Entregas" value={`${recepciones} / ${entregas}`} />
-        <StatCard label="Avance de metas" value={avance == null ? "—" : `${avance}%`} href={`/campanas/${campana.id}`} />
-      </div>
-
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Metas de recolección</h2>
-      <MetasResumen metas={metas} href={`/campanas/${campana.id}`} />
-
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Centros participantes</h2>
-      <Tabla
-        headers={["Centro", "Ciudad"]}
-        rows={campana.centros.map((c) => [c.centro.nombre, c.centro.ciudad])}
+      <Encabezado
+        titulo={campana.nombre}
+        sub={`Agregado de ${campana.centros.length} centros participantes${campana.meta ? ` · Meta: ${campana.meta}` : ""}`}
+        acciones={
+          <>
+            <Link href={`/campanas/${campana.id}`} className={cls.btnSecondary}>Gestionar campaña</Link>
+            <BotonCsv href={`/api/movimientos/export?campanaId=${campana.id}`} label="Movimientos CSV" />
+            <BotonCsv href={`/api/stock/export?campanaId=${campana.id}`} label="Stock CSV" />
+          </>
+        }
       />
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Stock agregado de la campaña</h2>
-      <TablaStock stock={stock} />
+      <Cifras
+        items={[
+          { label: "Centros", value: campana.centros.length },
+          { label: "Artículos en stock", value: stock.length },
+          { label: "Unidades totales", value: fmtNum(totalStock) },
+          { label: "Recepciones", value: recepciones },
+          { label: "Entregas", value: entregas },
+          { label: "Avance de metas", value: avance == null ? "—" : `${avance}%`, href: `/campanas/${campana.id}` },
+        ]}
+      />
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Movimientos de la campaña</h2>
-      {await tablaMovimientos({ campanaId: campana.id }, { conCentro: true })}
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2"><GraficaSerieDiaria datos={serie} titulo="Actividad de la campaña (últimos 30 días)" /></div>
+        <GraficaBarras datos={porCentro} titulo="Recibido por centro" />
+      </div>
+      <div className="mt-4">
+        <GraficaMetas metas={metas} />
+      </div>
+
+      <Seccion titulo="Metas de recolección">
+        <MetasResumen metas={metas} href={`/campanas/${campana.id}`} />
+      </Seccion>
+
+      <Seccion titulo="Centros participantes">
+        <Tabla headers={["Centro", "Ciudad"]} rows={campana.centros.map((c) => [<span key="n" className="font-medium">{c.centro.nombre}</span>, <span key="c" className="text-ink-2">{c.centro.ciudad}</span>])} />
+      </Seccion>
+
+      <Seccion titulo="Stock agregado de la campaña">
+        <TablaStock stock={stock} />
+      </Seccion>
+
+      <Seccion titulo="Movimientos de la campaña" aside={<Link href="/movimientos" className={`${cls.link} text-sm`}>Ver todos</Link>}>
+        {await tablaMovimientos({ campanaId: campana.id }, { conCentro: true })}
+      </Seccion>
     </div>
   );
 }
 
 function SinAsignar({ tipo }: { tipo: string }) {
   return (
-    <div className="rounded-xl border bg-white p-8 text-center text-gray-500">
+    <div className={`${cls.panel} p-8 text-center text-ink-3`}>
       Tu cuenta no tiene {tipo} asignado. Contacta al coordinador general.
     </div>
   );

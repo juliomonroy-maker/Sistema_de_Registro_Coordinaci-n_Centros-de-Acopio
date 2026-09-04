@@ -11,6 +11,7 @@ export type UsuarioFila = {
   email: string;
   rol: string;
   activo: boolean;
+  estado: string;
   centro: Opt | null;
   institucion: Opt | null;
 };
@@ -24,7 +25,7 @@ const ROLES: [string, string][] = [
 ];
 const ROL_LABEL = Object.fromEntries(ROLES);
 
-const field = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none";
+const field = "w-full min-h-11 rounded-md border border-line-2 bg-bg px-3 py-2 text-base text-ink placeholder-ink-3 focus:border-ink focus:outline-none sm:text-sm";
 
 /** Alta de cuentas y activar/desactivar. Solo lo ve el coordinador. */
 export function UsuariosAdmin({
@@ -51,7 +52,9 @@ export function UsuariosAdmin({
     e.preventDefault();
     setError(null);
     setOcupado("crear");
-    const fd = new FormData(e.currentTarget);
+    // `e.currentTarget` es null después del primer await: capturar el form antes.
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     try {
       await api("/api/usuarios", {
         method: "POST",
@@ -64,7 +67,7 @@ export function UsuariosAdmin({
           institucionId: necesitaInstitucion ? fd.get("institucionId") || null : null,
         }),
       });
-      e.currentTarget.reset();
+      form.reset();
       setAbierto(false);
       router.refresh();
     } catch (err) {
@@ -90,19 +93,19 @@ export function UsuariosAdmin({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500">{usuarios.length} cuentas</p>
+        <p className="text-sm text-ink-3">{usuarios.length} cuentas</p>
         <button
           onClick={() => setAbierto((v) => !v)}
-          className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-bg hover:bg-ink-2"
         >
           {abierto ? "Cerrar" : "+ Nueva cuenta"}
         </button>
       </div>
 
-      {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</div>}
 
       {abierto && (
-        <form onSubmit={crear} className="mb-6 grid gap-4 rounded-xl border bg-white p-6 md:grid-cols-2">
+        <form onSubmit={crear} className="mb-6 grid gap-4 rounded-xl border border-line bg-surface p-6 md:grid-cols-2">
           <label className="text-sm">
             <span className="mb-1 block font-medium">Nombre *</span>
             <input name="nombre" required minLength={2} className={field} />
@@ -149,7 +152,7 @@ export function UsuariosAdmin({
             <button
               type="submit"
               disabled={ocupado === "crear"}
-              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-bg hover:bg-ink-2 disabled:opacity-60"
             >
               {ocupado === "crear" ? "Creando…" : "Crear cuenta"}
             </button>
@@ -157,9 +160,9 @@ export function UsuariosAdmin({
         </form>
       )}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-500">
+          <thead className="bg-surface-2 text-left text-ink-3">
             <tr>
               {["Nombre", "Email", "Rol", "Centro / Institución", "Estado", ""].map((h) => (
                 <th key={h} className="px-4 py-2 font-medium">{h}</th>
@@ -168,14 +171,21 @@ export function UsuariosAdmin({
           </thead>
           <tbody>
             {usuarios.map((u) => (
-              <tr key={u.id} className={`border-t ${u.activo ? "" : "text-gray-400"}`}>
-                <td className="px-4 py-2">{u.nombre}{u.id === miId && <span className="ml-1 text-xs text-gray-400">(tú)</span>}</td>
+              <tr key={u.id} className={`border-t ${u.activo ? "" : "text-ink-3"}`}>
+                <td className="px-4 py-2">{u.nombre}{u.id === miId && <span className="ml-1 text-xs text-ink-3">(tú)</span>}</td>
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2">{ROL_LABEL[u.rol] ?? u.rol}</td>
                 <td className="px-4 py-2">{u.centro?.nombre ?? u.institucion?.nombre ?? "—"}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                    {u.activo ? "Activo" : "Inactivo"}
+                  <span className="inline-flex flex-wrap gap-1">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.activo ? "bg-ink/10 text-ink" : "bg-surface-2 text-ink-3"}`}>
+                      {u.activo ? "Activo" : "Inactivo"}
+                    </span>
+                    {u.estado !== "APROBADO" && (
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.estado === "PENDIENTE" ? "bg-warn-bg text-warn" : "bg-surface-3 text-ink-2"}`}>
+                        {u.estado === "PENDIENTE" ? "Pendiente de aprobación" : "Rechazado"}
+                      </span>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right">
@@ -183,7 +193,7 @@ export function UsuariosAdmin({
                     <button
                       onClick={() => toggleActivo(u)}
                       disabled={ocupado === u.id}
-                      className="rounded-md border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                      className="rounded-md border px-3 py-1 text-xs font-medium text-ink-2 hover:bg-surface-3 disabled:opacity-60"
                     >
                       {ocupado === u.id ? "…" : u.activo ? "Desactivar" : "Activar"}
                     </button>

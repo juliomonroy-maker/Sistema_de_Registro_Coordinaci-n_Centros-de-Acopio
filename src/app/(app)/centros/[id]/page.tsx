@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { puedeVerCentro } from "@/lib/auth";
 import { calcularStock, signoDeMovimiento } from "@/lib/stock";
-import { Tabla, TipoBadge, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
+import { Tabla, TipoBadge, EstadoBadge, BotonCsv, fmtFecha, fmtNum } from "@/components/ui";
+import { MapaCentrosCliente } from "@/components/MapaCentrosCliente";
 
 export const dynamic = "force-dynamic";
 
@@ -37,14 +38,14 @@ export default async function CentroDetallePage({ params }: { params: Promise<{ 
   return (
     <div>
       {session.rol === "COORDINADOR" && (
-        <Link href="/centros" className="text-sm text-brand-700 hover:underline">
-          ← Centros
+        <Link href="/centros" className="inline-flex items-center gap-1 text-sm text-ink-3 hover:text-ink">
+          <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg> Centros
         </Link>
       )}
       <div className="mb-6 mt-2 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{centro.nombre}</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{centro.nombre}</h1>
+          <p className="text-sm text-ink-3">
             {centro.direccion}, {centro.ciudad}, {centro.estado}
           </p>
         </div>
@@ -53,7 +54,7 @@ export default async function CentroDetallePage({ params }: { params: Promise<{ 
           <BotonCsv href={`/api/stock/export?centroId=${id}`} label="Stock CSV" />
           <span
             className={`rounded-full px-3 py-1 text-sm font-medium ${
-              centro.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+              centro.activo ? "bg-ink/10 text-ink" : "bg-surface-2 text-ink-3"
             }`}
           >
             {centro.activo ? "Activo" : "Inactivo"}
@@ -76,8 +77,29 @@ export default async function CentroDetallePage({ params }: { params: Promise<{ 
         <Info label="Miembros" value={centro.miembros.length.toString()} />
       </div>
 
+      {centro.latitud != null && centro.longitud != null && (
+        <section className="mt-6">
+          <MapaCentrosCliente
+            alto={280}
+            tema="oscuro"
+            centros={[{
+              id: centro.id,
+              nombre: centro.nombre,
+              direccion: centro.direccion,
+              ciudad: centro.ciudad,
+              latitud: centro.latitud,
+              longitud: centro.longitud,
+              activo: centro.activo,
+              encargado: centro.encargado?.nombre ?? null,
+              unidades: stock.reduce((a, s) => a + s.cantidad, 0),
+              href: null,
+            }]}
+          />
+        </section>
+      )}
+
       <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Inventario (stock derivado)</h2>
+        <h2 className="mb-3 text-base font-semibold sm:text-lg">Inventario (stock derivado)</h2>
         <Tabla
           headers={["Artículo", "Categoría", "Existencia"]}
           rows={stock.map((s) => [s.nombre, s.categoria, `${fmtNum(s.cantidad)} ${s.unidad}`])}
@@ -86,14 +108,17 @@ export default async function CentroDetallePage({ params }: { params: Promise<{ 
       </section>
 
       <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Movimientos recientes</h2>
+        <h2 className="mb-3 text-base font-semibold sm:text-lg">Movimientos recientes</h2>
         <Tabla
           headers={["Fecha", "Tipo", "Artículo", "Cantidad", "Actor"]}
           rows={movimientos.map((m) => {
             const signo = signoDeMovimiento(m.tipo, m.signoPositivo);
             return [
               fmtFecha(m.fecha),
-              <TipoBadge key="t" tipo={m.tipo} />,
+              <span key="t" className="inline-flex flex-wrap gap-1">
+                <TipoBadge tipo={m.tipo} />
+                <EstadoBadge estado={m.estado} />
+              </span>,
               m.articulo.nombre,
               `${signo > 0 ? "+" : "−"}${fmtNum(m.cantidad)} ${m.articulo.unidad}`,
               m.actor?.nombre ?? "—",
@@ -108,8 +133,8 @@ export default async function CentroDetallePage({ params }: { params: Promise<{ 
 
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs text-gray-400">{label}</div>
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <div className="text-xs text-ink-3">{label}</div>
       <div className="mt-0.5 font-medium">{value ?? "—"}</div>
     </div>
   );

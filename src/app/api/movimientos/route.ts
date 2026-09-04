@@ -63,7 +63,10 @@ export async function POST(req: NextRequest) {
       case "MERMA": {
         const d = mermaSchema.parse(body);
         autorizarMovimiento(session, "MERMA", d.centroId);
-        const mov = await registrarMovimiento({ ...d, tipo: "MERMA", actorId: session.userId });
+        // El encargado SOLICITA la merma (PENDIENTE, no descuenta stock); el coordinador la aprueba
+        // en PATCH /api/movimientos/:id/resolver. La del coordinador se aplica de inmediato.
+        const estado = session.rol === "COORDINADOR" ? "APROBADO" : "PENDIENTE";
+        const mov = await registrarMovimiento({ ...d, tipo: "MERMA", actorId: session.userId, estado });
         return ok(mov, 201);
       }
       case "AJUSTE": {

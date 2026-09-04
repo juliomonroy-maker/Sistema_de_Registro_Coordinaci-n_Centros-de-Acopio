@@ -28,7 +28,7 @@ const TIPOS_POR_ROL: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
-const field = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none";
+const field = "w-full min-h-11 rounded-md border border-line-2 bg-bg px-3 py-2 text-base text-ink placeholder-ink-3 focus:border-ink focus:outline-none sm:text-sm";
 
 export default function NuevoMovimientoPage() {
   return (
@@ -58,21 +58,32 @@ function Form() {
       const meRes = await api<{ user: Me }>("/api/auth/me");
       setMe(meRes.user);
       if (meRes.user?.centroId) setCentroId(meRes.user.centroId);
-      const [camp, art, cen, inst] = await Promise.all([
-        api<Opt[]>("/api/campanas?activa=true"),
+      const [art, cen, inst] = await Promise.all([
         api<Opt[]>("/api/articulos"),
         api<Opt[]>("/api/centros?activo=true"),
         api<Opt[]>("/api/instituciones"),
       ]);
-      setCampanas(camp);
       setArticulos(art);
       setCentros(cen);
       setInstituciones(inst);
     })().catch((e) => setError(e instanceof Error ? e.message : "Error"));
   }, []);
 
+  // Solo campañas activas en las que participa el centro elegido: evita el 422
+  // "el centro no participa en esta campaña" al enviar.
+  useEffect(() => {
+    if (!centroId) {
+      setCampanas([]);
+      return;
+    }
+    api<Opt[]>(`/api/campanas?activa=true&centroId=${encodeURIComponent(centroId)}`)
+      .then(setCampanas)
+      .catch((e) => setError(e instanceof Error ? e.message : "Error"));
+  }, [centroId]);
+
   const tipos = useMemo(() => TIPOS_POR_ROL[me?.rol ?? "VOLUNTARIO"] ?? [], [me]);
   const centroFijo = me?.rol === "ENCARGADO" || me?.rol === "VOLUNTARIO";
+  const sinCampanas = !!centroId && campanas.length === 0;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -116,7 +127,11 @@ function Form() {
         }
         await api("/api/movimientos", { method: "POST", body: JSON.stringify(body) });
       }
-      setOkMsg("Movimiento registrado.");
+      setOkMsg(
+        tipo === "MERMA" && me?.rol === "ENCARGADO"
+          ? "Merma enviada al coordinador. No descuenta stock hasta que la apruebe."
+          : "Movimiento registrado.",
+      );
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } catch (err) {
@@ -128,12 +143,12 @@ function Form() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold">Registrar movimiento</h1>
-      {error && <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {okMsg && <div className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{okMsg}</div>}
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight sm:text-3xl">Registrar movimiento</h1>
+      {error && <div className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</div>}
+      {okMsg && <div className="mb-4 rounded-md bg-ink/10 px-3 py-2 text-sm text-ink">{okMsg}</div>}
 
-      <form onSubmit={onSubmit} className="grid grid-cols-2 gap-4 rounded-xl border bg-white p-6">
-        <label className="col-span-2 text-sm">
+      <form onSubmit={onSubmit} className="grid gap-4 rounded-xl border border-line bg-surface p-4 sm:grid-cols-2 sm:p-6">
+        <label className="sm:col-span-2 text-sm">
           <span className="mb-1 block font-medium">Tipo *</span>
           <select value={tipo} onChange={(e) => setTipo(e.target.value)} className={field}>
             {tipos.map((t) => (
@@ -164,13 +179,18 @@ function Form() {
         <label className="text-sm">
           <span className="mb-1 block font-medium">Campaña *</span>
           <select name="campanaId" required className={field}>
-            <option value="">Selecciona…</option>
+            <option value="">{centroId ? "Selecciona…" : "Elige primero el centro"}</option>
             {campanas.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nombre}
               </option>
             ))}
           </select>
+          {sinCampanas && (
+            <span className="mt-1 block text-xs text-danger">
+              Este centro no participa en ninguna campaña activa. El coordinador o el líder deben vincularlo desde la campaña.
+            </span>
+          )}
         </label>
 
         <label className="text-sm">
@@ -204,7 +224,7 @@ function Form() {
         )}
 
         {tipo === "ENTREGA" && (
-          <label className="col-span-2 text-sm">
+          <label className="sm:col-span-2 text-sm">
             <span className="mb-1 block font-medium">Institución receptora</span>
             <select name="institucionId" className={field}>
               <option value="">— (beneficiario sin institución) —</option>
@@ -217,8 +237,13 @@ function Form() {
           </label>
         )}
 
+        {tipo === "MERMA" && me?.rol === "ENCARGADO" && (
+          <p className="sm:col-span-2 rounded-md bg-warn-bg px-3 py-2 text-xs text-warn">
+            La merma queda <b>pendiente</b> hasta que el coordinador la apruebe; mientras tanto no descuenta stock.
+          </p>
+        )}
         {tipo === "MERMA" && (
-          <label className="col-span-2 text-sm">
+          <label className="sm:col-span-2 text-sm">
             <span className="mb-1 block font-medium">Motivo * (obligatorio)</span>
             <select name="motivo" required className={field}>
               <option value="CADUCIDAD">Caducidad</option>
@@ -249,7 +274,7 @@ function Form() {
         )}
 
         {tipo === "TRANSFERENCIA" && (
-          <label className="col-span-2 text-sm">
+          <label className="sm:col-span-2 text-sm">
             <span className="mb-1 block font-medium">Centro destino *</span>
             <select name="destinoId" required className={field}>
               <option value="">Selecciona…</option>
@@ -264,23 +289,23 @@ function Form() {
           </label>
         )}
 
-        <label className="col-span-2 text-sm">
+        <label className="sm:col-span-2 text-sm">
           <span className="mb-1 block font-medium">Nota</span>
           <input name="nota" className={field} />
         </label>
 
-        <div className="col-span-2 mt-2 flex gap-3">
+        <div className="sm:col-span-2 mt-2 flex gap-3">
           <button
             type="submit"
-            disabled={loading}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            disabled={loading || sinCampanas}
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-bg hover:bg-ink-2 disabled:opacity-60"
           >
             {loading ? "Registrando…" : "Registrar"}
           </button>
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
-            className="rounded-md border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-line-2 px-4 text-sm font-medium text-ink hover:bg-surface-3"
           >
             Volver
           </button>

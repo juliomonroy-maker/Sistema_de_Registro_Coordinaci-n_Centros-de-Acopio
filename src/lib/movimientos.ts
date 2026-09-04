@@ -1,4 +1,4 @@
-import type { Prisma, Motivo, TipoMovimiento } from "@prisma/client";
+import type { Prisma, Motivo, TipoMovimiento, EstadoMovimiento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { stockDisponible, type StockFiltro } from "@/lib/stock";
 import { AuthError } from "@/lib/auth";
@@ -57,10 +57,19 @@ type MovInput = {
   donanteNombre?: string | null;
   donanteAnonimo?: boolean;
   institucionId?: string | null;
+  /** PENDIENTE = queda en espera de aprobación y NO afecta el stock. Solo aplica a MERMA. */
+  estado?: Extract<EstadoMovimiento, "PENDIENTE" | "APROBADO">;
 };
 
-/** Registra un movimiento simple (recepción, entrega, merma, ajuste). */
+/**
+ * Registra un movimiento simple (recepción, entrega, merma, ajuste).
+ * Una MERMA con `estado: "PENDIENTE"` se valida contra el stock actual (para
+ * avisar de inmediato si no alcanza) pero no descuenta hasta que el coordinador
+ * la apruebe con `resolverMerma`.
+ */
 export async function registrarMovimiento(input: MovInput) {
+  const estado: EstadoMovimiento = input.tipo === "MERMA" && input.estado === "PENDIENTE" ? "PENDIENTE" : "APROBADO";
+
   return prisma.$transaction(async (tx) => {
     await validarContexto(tx, input.centroId, input.campanaId);
 
@@ -73,6 +82,7 @@ export async function registrarMovimiento(input: MovInput) {
     return tx.movimiento.create({
       data: {
         tipo: input.tipo,
+        estado,
         centroId: input.centroId,
         campanaId: input.campanaId,
         articuloId: input.articuloId,
@@ -86,6 +96,47 @@ export async function registrarMovimiento(input: MovInput) {
         institucionId: input.institucionId ?? null,
       },
       include: { articulo: true, campana: true },
+    });
+  });
+}
+
+/**
+ * El coordinador aprueba o rechaza una MERMA pendiente.
+ * - Aprobar: se revalida contexto y stock bajo el lock de la línea (el stock pudo
+ *   cambiar desde la solicitud); si no alcanza, lanza MovimientoError y la merma
+ *   sigue PENDIENTE. Al aprobarse pasa a descontar del stock.
+ * - Rechazar: queda RECHAZADO con `motivoRechazo`; nunca afecta el stock.
+ * Ambas dejan trazabilidad: quién resolvió y cuándo.
+ */
+export async function resolverMerma(input: {
+  id: string;
+  accion: "APROBAR" | "RECHAZAR";
+  aprobadorId: string;
+  motivoRechazo?: string | null;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const mov = await tx.movimiento.findUnique({
+      where: { id: input.id },
+      select: { id: true, tipo: true, estado: true, centroId: true, campanaId: true, articuloId: true, cantidad: true },
+    });
+    if (!mov) throw new MovimientoError("Movimiento no encontrado.");
+    if (mov.tipo !== "MERMA") throw new MovimientoError("Solo las mermas pasan por aprobación.");
+    if (mov.estado !== "PENDIENTE") throw new MovimientoError("Esta merma ya fue resuelta.");
+
+    if (input.accion === "APROBAR") {
+      await validarContexto(tx, mov.centroId, mov.campanaId);
+      await validarSalida(tx, mov.centroId, mov.campanaId, mov.articuloId, mov.cantidad);
+    }
+
+    return tx.movimiento.update({
+      where: { id: mov.id },
+      data: {
+        estado: input.accion === "APROBAR" ? "APROBADO" : "RECHAZADO",
+        aprobadoPorId: input.aprobadorId,
+        resueltoAt: new Date(),
+        motivoRechazo: input.accion === "RECHAZAR" ? (input.motivoRechazo ?? null) : null,
+      },
+      include: { articulo: true, centro: { select: { id: true, nombre: true } } },
     });
   });
 }
@@ -175,6 +226,7 @@ export type MovimientosFiltro = {
   centroId?: string;
   campanaId?: string;
   tipo?: TipoMovimiento;
+  estado?: EstadoMovimiento;
   desde?: Date;
   hasta?: Date;
 };
@@ -196,6 +248,7 @@ export async function alcanceMovimientos(
     ...(f.centroId ? { centroId: f.centroId } : {}),
     ...(f.campanaId ? { campanaId: f.campanaId } : {}),
     ...(f.tipo ? { tipo: f.tipo } : {}),
+    ...(f.estado ? { estado: f.estado } : {}),
     ...(f.desde || f.hasta ? { fecha: { ...(f.desde ? { gte: f.desde } : {}), ...(f.hasta ? { lte: f.hasta } : {}) } } : {}),
   };
 

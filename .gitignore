@@ -33,3 +33,6 @@ yarn-error.log*
 # documentación interna: no se publica en GitHub (README.md sí)
 *.md
 !README.md
+
+# configuración local del asistente de código
+.claude/

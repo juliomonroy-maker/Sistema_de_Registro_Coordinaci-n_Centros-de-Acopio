@@ -1,4 +1,4 @@
-# SCCA — Sistema de Coordinación de Centros de Acopio
+# SRCCA — Sistema de Registro y Coordinación de Centros de Acopio
 
 App web para registrar centros de acopio, llevar su inventario, capturar donaciones, publicar necesidades y coordinar transferencias de insumos entre centros.
 

@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// Sistema monocromo oscuro de SCCA: un solo ground negro, superficies en grises
+// Sistema monocromo oscuro de SRCCA: un solo ground negro, superficies en grises
 // muy oscuros separadas por líneas finas, tinta blanca en tres niveles.
 // Rojo (danger) y ámbar (warn) solo para errores y pendientes; no hay acento de marca.
 const config: Config = {

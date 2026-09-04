@@ -74,9 +74,9 @@ export function NavBar({ nombre, rol }: { nombre: string; rol: string }) {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5" aria-label="SCCA, inicio">
-          <Image src="/logo-scca-blanco.png" alt="" width={58} height={28} className="h-6 w-auto" priority />
-          <span className="text-sm font-black tracking-[0.2em]">SCCA</span>
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5" aria-label="SRCCA, inicio">
+          <Image src="/logo-srcca-blanco.png" alt="" width={58} height={28} className="h-6 w-auto" priority />
+          <span className="text-sm font-black tracking-[0.2em]">SRCCA</span>
         </Link>
 
         <nav className="hidden flex-1 items-center gap-1 lg:flex" aria-label="Principal">

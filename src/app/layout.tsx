@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "SCCA",
-  description: "SCCA · Sistema de Coordinación de Centros de Acopio",
-  icons: { icon: "/logo-scca-blanco.png" },
+  title: "SRCCA",
+  description: "SRCCA · Sistema de Registro y Coordinación de Centros de Acopio",
+  icons: { icon: "/logo-srcca-blanco.png" },
 };
 
 export const viewport: Viewport = {
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={inter.variable}>
       <body className="font-sans">
         {/*
-          IMPECCABLE DIRECTION CONTRACT · SCCA · 2026-09-03
+          IMPECCABLE DIRECTION CONTRACT · SRCCA · 2026-09-03
           THESIS: un cuaderno de operación en negro: todo es tinta blanca sobre un solo ground,
             separado por líneas finas, no por cajas. Rechaza la rejilla de tarjetas iguales con icono.
           OWN-WORLD: ground #0a0a0a, superficies #121212/#181818, líneas #262626, tinta en tres
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Inter con numerales tabulares; botón primario = blanco sobre negro.
           STORY: quien entra ve de un vistazo qué hay, qué falta aprobar y dónde registrar; confía
             porque cada número tiene origen y cada acción deja rastro.
-          FIRST VIEWPORT: barra superior fina (logo pantera + SCCA, enlaces, usuario); título con
+          FIRST VIEWPORT: barra superior fina (logo pantera + SRCCA, enlaces, usuario); título con
             acciones a la derecha; riel de cifras separadas por líneas; luego gráficas y tablas.
             En móvil: barra con menú desplegable, cifras en 2 columnas, tablas con scroll lateral.
           FORM: dirección pinneada por el usuario (oscuro total, monocromo, minimal); sin tirada.

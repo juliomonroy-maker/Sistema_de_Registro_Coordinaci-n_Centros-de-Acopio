@@ -36,3 +36,4 @@ yarn-error.log*
 
 # configuración local del asistente de código
 .claude/
+.vercel

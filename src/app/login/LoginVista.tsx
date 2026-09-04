@@ -15,15 +15,15 @@ function destinoSeguro(next: string | null): string {
 const input =
   "w-full min-h-11 rounded-md border border-line-2 bg-bg px-3 py-2.5 text-base text-ink placeholder-ink-3 focus:border-ink focus:outline-none sm:text-sm";
 
-/** Pantalla de acceso: mapa a la izquierda, logo SCCA arriba a la derecha y formulario. Tema oscuro. */
+/** Pantalla de acceso: mapa a la izquierda, logo SRCCA arriba a la derecha y formulario. Tema oscuro. */
 export function LoginVista({ centros }: { centros: CentroPublico[] }) {
   return (
     <main className="flex min-h-screen flex-col bg-bg text-ink lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
       {/* Logo: arriba a la derecha en escritorio; arriba centrado en móvil */}
       <header className="order-1 flex items-center justify-center gap-3 px-4 pt-5 pb-3 lg:absolute lg:right-8 lg:top-6 lg:z-[1100] lg:justify-end lg:p-0">
-        <Image src="/logo-scca-blanco.png" alt="Logo SCCA: pantera" width={200} height={96} priority className="h-12 w-auto sm:h-14 lg:h-16" />
+        <Image src="/logo-srcca-blanco.png" alt="Logo SRCCA: pantera" width={200} height={96} priority className="h-12 w-auto sm:h-14 lg:h-16" />
         <div className="leading-tight">
-          <div className="text-2xl font-black tracking-widest">SCCA</div>
+          <div className="text-2xl font-black tracking-widest">SRCCA</div>
           <div className="text-[10px] uppercase tracking-wider text-ink-3">Centros de Acopio</div>
         </div>
       </header>
@@ -67,7 +67,7 @@ function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
       <h1 className="mb-1 text-xl font-bold">Iniciar sesión</h1>
-      <p className="mb-6 text-sm text-ink-3">Sistema de Coordinación de Centros de Acopio</p>
+      <p className="mb-6 text-sm text-ink-3">Sistema de Registro y Coordinación de Centros de Acopio</p>
 
       {error && <div className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger">{error}</div>}
 

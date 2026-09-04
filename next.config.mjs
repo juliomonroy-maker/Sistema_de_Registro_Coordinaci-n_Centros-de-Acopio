@@ -9,7 +9,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: "standalone", // salida autocontenida para Docker (node server.js)
+  // Docker usa salida autocontenida; en Vercel debe omitirse.
+  ...(process.env.VERCEL ? {} : { output: "standalone" }),
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

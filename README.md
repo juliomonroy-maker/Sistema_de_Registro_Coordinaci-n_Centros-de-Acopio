@@ -131,7 +131,7 @@ Toda la documentación vive en [`docs/`](docs/README.md):
 - El **voluntario** solo registra recepciones y entregas.
 - El **donante** no tiene cuenta; sus datos son opcionales (puede ser anónimo).
 
-**#claves de acceso**
+## Claves de acceso
  Rol                  | Email                   | Contraseña   |
 |----------------------|-------------------------|--------------|
 | Coordinador general  | coordinador@acopio.mx   | password123  |

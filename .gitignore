@@ -29,3 +29,7 @@ yarn-error.log*
 
 # prisma
 /prisma/*.db
+
+# documentación interna: no se publica en GitHub (README.md sí)
+*.md
+!README.md
